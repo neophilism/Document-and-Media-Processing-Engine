@@ -1,3 +1,10 @@
 # Document and Media Processing Engine
 
-Country-neutral reusable engine. Implementations are delivered through small tested pull requests. Deployment-specific research and policy remain outside this repository. Public Accountability Machine consumes this dependency after its contract is ready.
+Reusable country-neutral engine. Initial capabilities and limits are documented in [architecture](docs/ARCHITECTURE.md); the canonical work plan is [registry/prs.json](registry/prs.json).
+
+```sh
+npm ci
+npm run check
+```
+
+All research and jurisdiction configuration belong in downstream deployments. Implementation, local tests, CI, merge and live acceptance are separate.

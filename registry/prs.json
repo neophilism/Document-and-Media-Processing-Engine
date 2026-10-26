@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "repository": "neophilism/Document-and-Media-Processing-Engine",
+  "roadmapVersion": 1,
+  "planVerified": true,
+  "plannedPrCount": 6,
+  "observedAt": "2026-10-26T18:50:00Z",
+  "units": [
+    {
+      "id": "DMP-001",
+      "title": "Clean authorized exact-byte text extraction",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Clean authorized exact-byte text extraction"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "DMP-002",
+      "title": "Versioned processing adapter jobs and transcript validation",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "DMP-001"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Versioned processing adapter jobs and transcript validation"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "DMP-003",
+      "title": "Sandboxed OCR and page layout",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "DMP-002"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Sandboxed OCR and page layout"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "DMP-004",
+      "title": "Audio/video transcription and translation",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "DMP-002"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Audio/video transcription and translation"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "DMP-005",
+      "title": "Durable workers and quality/cost evaluation",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "DMP-003",
+        "DMP-004"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Durable workers and quality/cost evaluation"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    },
+    {
+      "id": "DMP-006",
+      "title": "Visual inspection and live processing acceptance",
+      "origin": "original",
+      "prs": [],
+      "contributingPrs": [],
+      "dependsOn": [
+        "DMP-005"
+      ],
+      "externalDependencies": [],
+      "externalPrerequisites": [],
+      "scope": [
+        "Visual inspection and live processing acceptance"
+      ],
+      "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
+      "implementationStatus": "planned"
+    }
+  ],
+  "pullRequests": []
+}
