@@ -129,7 +129,7 @@ export function validateDockerCapabilities(value: unknown): void {
       info.PidsLimit === true &&
       Array.isArray(info.SecurityOptions) &&
       info.SecurityOptions.some(
-        (x) => typeof x === "string" && x.startsWith("name=seccomp"),
+        (x) => typeof x === "string" && x === "name=seccomp,profile=builtin",
       ),
     "isolation_unavailable",
     "Required Linux memory CPU PID and seccomp controls are unavailable",

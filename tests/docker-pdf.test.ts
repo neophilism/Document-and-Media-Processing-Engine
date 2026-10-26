@@ -103,6 +103,8 @@ test("kernel enforcement report is required and fails closed", () => {
     { ...info, CpuCfsQuota: false },
     { ...info, PidsLimit: false },
     { ...info, SecurityOptions: [] },
+    { ...info, SecurityOptions: ["name=seccomp,profile=unconfined"] },
+    { ...info, SecurityOptions: ["name=seccomp-disabled"] },
   ])
     assert.throws(() => validateDockerCapabilities(value));
 });
