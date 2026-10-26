@@ -11,6 +11,10 @@
     "./contracts": {
       "types": "./dist/contracts.d.ts",
       "default": "./dist/contracts.js"
+    },
+    "./docker-pdf": {
+      "types": "./dist/docker-pdf.d.ts",
+      "default": "./dist/docker-pdf.js"
     }
   },
   "engines": {
@@ -21,7 +25,8 @@
     "test": "node --test tests/*.test.ts",
     "check": "npm run typecheck && npm test && npm run build && node scripts/validate-pr-registry.mjs",
     "build": "tsc -p tsconfig.build.json",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test:docker": "node --test integration/docker-pdf.test.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.5",
