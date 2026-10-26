@@ -15,6 +15,10 @@
     "./docker-pdf": {
       "types": "./dist/docker-pdf.d.ts",
       "default": "./dist/docker-pdf.js"
+    },
+    "./docker-ocr": {
+      "types": "./dist/docker-ocr.d.ts",
+      "default": "./dist/docker-ocr.js"
     }
   },
   "engines": {
@@ -26,7 +30,8 @@
     "check": "npm run typecheck && npm test && npm run build && node scripts/validate-pr-registry.mjs",
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
-    "test:docker": "node --test integration/docker-pdf.test.ts"
+    "test:docker": "node --test integration/docker-pdf.test.ts",
+    "test:docker:ocr": "node --test integration/docker-ocr.test.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.5",

@@ -26,3 +26,15 @@ jobs:
       - run: npm ci
       - run: docker build --iidfile /tmp/dmp-image -f containers/pdf-text/Dockerfile .
       - run: DMP_TEST_IMAGE="$(cat /tmp/dmp-image)" npm run test:docker
+  docker-ocr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: docker build --iidfile /tmp/dmp-ocr-image -f containers/pdf-ocr/Dockerfile .
+      - run: DMP_OCR_TEST_IMAGE="$(cat /tmp/dmp-ocr-image)" npm run test:docker:ocr
