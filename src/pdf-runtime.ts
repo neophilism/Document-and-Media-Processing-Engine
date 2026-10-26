@@ -14,7 +14,13 @@ import {
 import type { Context, Ref } from "./contracts.ts";
 import type { ProcessingInput } from "./index.ts";
 import { runBoundedProcess } from "./process-runner.ts";
-export type PdfRuntimeResult = { source: Ref; sourceSha256: string; output: Uint8Array; imageRef: string; createdAt: string; };
+export type PdfRuntimeResult = {
+  source: Ref;
+  sourceSha256: string;
+  output: Uint8Array;
+  imageRef: string;
+  createdAt: string;
+};
 export type PdfRuntime = {
   imageRef: string;
   dockerBinary: string;
@@ -41,7 +47,13 @@ export function pdfContainerArguments(
     "invalid_runtime_path",
     "Container identity or input path invalid",
   );
-  invariant(runtime.profile === undefined || runtime.profile === "pdf-text-v1" || runtime.profile === "pdf-ocr-v1", "invalid_runtime_profile", "Unsupported PDF isolation profile");
+  invariant(
+    runtime.profile === undefined ||
+      runtime.profile === "pdf-text-v1" ||
+      runtime.profile === "pdf-ocr-v1",
+    "invalid_runtime_profile",
+    "Unsupported PDF isolation profile",
+  );
   const ocr = runtime.profile === "pdf-ocr-v1";
   return [
     "run",
@@ -66,7 +78,9 @@ export function pdfContainerArguments(
     "fsize=8388608:8388608",
     "--log-driver=none",
     "--tmpfs",
-    ocr ? "/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777" : "/tmp:rw,noexec,nosuid,nodev,size=8m,mode=1777",
+    ocr
+      ? "/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777"
+      : "/tmp:rw,noexec,nosuid,nodev,size=8m,mode=1777",
     "--mount",
     "type=bind,src=" + inputDirectory + ",dst=/input,readonly",
     "--env",
@@ -233,11 +247,14 @@ export class IsolatedPdfRuntime {
       invariant(
         result.code === 0,
         "parser_failed",
-        "PDF text parser did not complete successfully",
+        "PDF parser did not complete successfully",
       );
       return {
-        source, sourceSha256: expectedHash, output: new Uint8Array(result.stdout),
-        imageRef: this.#runtime.imageRef, createdAt: c.now,
+        source,
+        sourceSha256: expectedHash,
+        output: new Uint8Array(result.stdout),
+        imageRef: this.#runtime.imageRef,
+        createdAt: c.now,
       };
     } catch (error) {
       originalFailure = error;

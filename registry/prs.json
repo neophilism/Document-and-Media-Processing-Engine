@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-26T20:20:00Z",
+  "observedAt": "2026-10-26T23:58:21Z",
   "units": [
     {
       "id": "DMP-001",
@@ -48,7 +48,8 @@
       "origin": "original",
       "prs": [],
       "contributingPrs": [
-        2
+        2,
+        3
       ],
       "dependsOn": [
         "DMP-002"
@@ -59,7 +60,7 @@
         "Sandboxed OCR and page layout"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "Partial: isolated PDF embedded-text adapter and qualification tests; OCR and layout coordinates remain pending. Docker integration CI must pass."
+      "implementationStatus": "PR3 adds fixed-profile PDF OCR and pixel page/word geometry with confidence/provenance; local schema/gate tests and native benign-worker test pass. Actual Docker OCR and original PDF-text integration CI are required for the final head. Multilingual/quality evaluation, crash reconciliation, signed/reproducible supply chain and deployment acceptance remain pending."
     },
     {
       "id": "DMP-004",
