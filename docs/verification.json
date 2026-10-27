@@ -17,7 +17,7 @@
     "src/text-jobs.ts": "486728bb26352cab39e7cac30d167ce0a409e702ab3c5ae1e92b04530ef8e550",
     "src/text-worker.ts": "745162ba19064535661a9cf200503b540c20c43ccd67a263f5479cf227b9f5df",
     "src/evidence-source.ts": "487659cff006bfc5276a672f801fc42015b8401fa0b586b2bc824a9b390b45be",
-    "src/text-outputs.ts": "43bcd53df3553d67fccd1a37895f2a992c9fb55f9c55d9e2e030d42039b0bc36"
+    "src/text-outputs.ts": "038f994badd25177e26e85d1ad832d161c83e8cbbc5251f91de581c25d9b148f"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",

@@ -272,7 +272,23 @@ test("lost committed output acknowledgement recovers exact outcome without a sec
   );
   assert.equal(lost, true);
   f.time.now = "2026-01-01T00:02:00Z";
-  const out = await f.outputs.recoverOutcome(c, "actual", 3, signal());
+  const fresh = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      authorize: async (_job, ctx) => {
+        assert.equal(ctx.now, f.time.now);
+        return true;
+      },
+      readSource: async (_job, ctx) => {
+        assert.equal(ctx.now, f.time.now);
+        return f.source();
+      },
+    },
+    () => f.time.now,
+  );
+  const out = await fresh.recoverOutcome(c, "actual", 3, signal());
   assert.equal(await f.outputs.verifyOutcome(j.job, out, c, signal()), true);
   assert.equal((await f.jobs.read(w, "actual")).job.status, "consumed");
   await scoped(f.db, c, async (tx) =>

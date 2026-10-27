@@ -195,10 +195,19 @@ export class PrivateTextOutputs {
       controller.abort();
     }
   }
+  #fresh(c: Context): Context {
+    const now = this.#clock();
+    invariant(
+      validTime(now) >= validTime(c.now),
+      "output_denied",
+      "Trusted clock regressed",
+    );
+    return { ...structuredClone(c), now };
+  }
   async #permit(c: Context, j: TextJob, signal: AbortSignal) {
     invariant(
       (await this.#bounded(signal, (s) =>
-        this.#authorize(structuredClone(j), structuredClone(c), s),
+        this.#authorize(structuredClone(j), this.#fresh(c), s),
       )) === true,
       "output_denied",
       "Current output policy denied",
@@ -221,11 +230,7 @@ export class PrivateTextOutputs {
     );
     const j = historical.value;
     const input = await this.#bounded(signal, (s) =>
-      this.#source(
-        { job: structuredClone(j), revision },
-        structuredClone(c),
-        s,
-      ),
+      this.#source({ job: structuredClone(j), revision }, this.#fresh(c), s),
     );
     invariant(
       input.bytes instanceof Uint8Array &&
@@ -239,7 +244,7 @@ export class PrivateTextOutputs {
       "Current exact source verification required",
     );
     const derived = extractUtf8(
-      c,
+      this.#fresh(c),
       {
         ...input,
         source: structuredClone(j.source),
