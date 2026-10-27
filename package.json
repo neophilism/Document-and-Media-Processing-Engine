@@ -23,6 +23,10 @@
     "./captions": {
       "types": "./dist/captions.d.ts",
       "default": "./dist/captions.js"
+    },
+    "./translation": {
+      "types": "./dist/translation.d.ts",
+      "default": "./dist/translation.js"
     }
   },
   "engines": {

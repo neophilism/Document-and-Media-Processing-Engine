@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 21,
+  "testsPassed": 28,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -12,11 +12,18 @@
   "sourceHashes": {
     "src/contracts.ts": "d86141cb7546a723f837a298e4ea6fef62692918f78f5aab2d72d6639987fcc5",
     "src/index.ts": "4a24126ff5b081658cff0745a6e802a50131db8caf6e7d0a2947853e82316b25",
-    "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf"
+    "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf",
+    "src/translation.ts": "1df01ee05bf34e53d5635f0cb9e95068e41f9639cd89047ca83b644c5491e2cc"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",
     "Supplied captions and media bindings are not speech recognition or verified word accuracy.",
     "No live private input, model calls or deployment qualification."
-  ]
+  ],
+  "translation": {
+    "newLocalGroups": 7,
+    "runtime": "Deterministic host-supplied local callback only",
+    "modelQualityIsolationLiveAcceptance": "not_performed",
+    "networkOrModelDownloads": "none"
+  }
 }
