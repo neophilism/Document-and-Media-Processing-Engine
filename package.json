@@ -43,6 +43,10 @@
     "./text-outputs": {
       "types": "./dist/text-outputs.d.ts",
       "default": "./dist/text-outputs.js"
+    },
+    "./text-reconciliation": {
+      "types": "./dist/text-reconciliation.d.ts",
+      "default": "./dist/text-reconciliation.js"
     }
   },
   "engines": {
