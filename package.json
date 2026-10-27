@@ -35,6 +35,10 @@
     "./text-worker": {
       "types": "./dist/text-worker.d.ts",
       "default": "./dist/text-worker.js"
+    },
+    "./evidence-source": {
+      "types": "./dist/evidence-source.d.ts",
+      "default": "./dist/evidence-source.js"
     }
   },
   "engines": {
@@ -61,6 +65,7 @@
     "docs"
   ],
   "dependencies": {
-    "@accountability/evidence": "github:neophilism/Evidence-Storage-and-Provenance-Engine#dce7105a70b42d77afe4cd48d34723331447037c"
+    "@accountability/evidence": "github:neophilism/Evidence-Storage-and-Provenance-Engine#dce7105a70b42d77afe4cd48d34723331447037c",
+    "@accountability/evidence-service-sdk": "github:neophilism/Evidence-Storage-and-Provenance-Engine#c9aafd0cc7d655e4dc3f8b5b8b833ef102d4cf2b"
   }
 }
