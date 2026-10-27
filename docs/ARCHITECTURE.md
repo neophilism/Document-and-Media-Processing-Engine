@@ -41,3 +41,5 @@ All text-ledger verification callbacks enforce monotonic admission/result deadli
 ## Controlled host reconciliation
 
 [Text-output reconciliation](TEXT_RECONCILIATION.md) connects explicit manager-selected committed-output recovery or existing-byte finalization to independently verified job completion. Exact execution bindings and fresh current proof gate acknowledgements, while errors preserve uncertainty without automatic execution or retry. Authentication/HTTP hosting, safe cleanup, stopped/liveness services and deployment acceptance remain separate.
+
+No-output settlement/retry now check exact known Processing output intent/artifact/receipt presence under the shared project lock before cached lookup. Intent admission and settlement serialize conservatively; any known record denies. Independent quiescence/no-output proof remains mandatory, and absence never becomes proof. No cleanup or deployed liveness service is introduced.
