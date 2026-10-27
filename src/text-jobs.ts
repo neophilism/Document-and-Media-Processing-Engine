@@ -515,6 +515,12 @@ export class TextProcessingJobs {
       "job_unavailable",
       "Consumed work or exact failed replay required",
     );
+    invariant(
+      before.revision ===
+        consumedRevision + (before.job.status === "failed" ? 1 : 0),
+      "revision_conflict",
+      "Proof must bind the exact consumed edition",
+    );
     await verify(this.#timeout, (signal) =>
       check(
         structuredClone(before.job),
