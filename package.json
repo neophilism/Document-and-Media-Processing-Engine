@@ -31,6 +31,10 @@
     "./text-jobs": {
       "types": "./dist/text-jobs.d.ts",
       "default": "./dist/text-jobs.js"
+    },
+    "./text-worker": {
+      "types": "./dist/text-worker.d.ts",
+      "default": "./dist/text-worker.js"
     }
   },
   "engines": {
