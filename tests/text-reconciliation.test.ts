@@ -70,7 +70,11 @@ async function fixture(t: test.TestContext, pending = true) {
       processingAllowed: true,
     };
   };
-  const jobPolicy = { ...f.policy, verificationTimeoutMs: 1000, managerIds: ["owner", "second"] };
+  const jobPolicy = {
+    ...f.policy,
+    verificationTimeoutMs: 1000,
+    managerIds: ["owner", "second"],
+  };
   const options = {
     ...jobPolicy,
     readSource: source,
@@ -294,4 +298,331 @@ test("lost output-publication acknowledgement leaves consumed work and needs a s
   );
   assert.equal(recovered.status, "completed");
   assert.deepEqual(await readFile(f.objectPath), f.ciphertext);
+});
+
+test("lost completion acknowledgement is unknown until explicit verified replay observes committed state", async (t) => {
+  const f = await fixture(t, false),
+    lost = fault(f.db, "processing.completed", true);
+  const jobs = new TextProcessingJobs(
+    lost.db,
+    f.jobPolicy,
+    {
+      authorizeStart: async () => true,
+      verifyOutcome: f.outputs.verifyOutcome.bind(f.outputs),
+    },
+    () => f.time.now,
+  );
+  const action = { ...request, output: "recover-stored" as const };
+  const unknown = await reconcileTextOutput(
+    jobs,
+    f.outputs,
+    c,
+    action,
+    () => f.time.now,
+  );
+  assert.deepEqual(unknown, {
+    status: "reconciliation-required",
+    phase: "completion",
+  });
+  assert.equal(lost.injected(), true);
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "completed");
+  const replay = await reconcileTextOutput(
+    jobs,
+    f.outputs,
+    c,
+    action,
+    () => f.time.now,
+  );
+  assert.equal(replay.status, "completed");
+  await scoped(f.db, c, async (tx) => {
+    assert.equal(
+      (await tx.get("text-processing-job", digest({ id: "actual" })))?.revision,
+      4,
+    );
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+  f.deny();
+  assert.deepEqual(
+    await reconcileTextOutput(jobs, f.outputs, c, action, () => f.time.now),
+    { status: "reconciliation-required", phase: "output" },
+  );
+});
+
+test("completion rollback retains committed private output for explicit recovery without claiming atomic stages", async (t) => {
+  const f = await fixture(t),
+    rollback = fault(f.db, "processing.completed", false);
+  const jobs = new TextProcessingJobs(
+    rollback.db,
+    f.jobPolicy,
+    {
+      authorizeStart: async () => true,
+      verifyOutcome: f.outputs.verifyOutcome.bind(f.outputs),
+    },
+    () => f.time.now,
+  );
+  assert.deepEqual(
+    await reconcileTextOutput(jobs, f.outputs, c, request, () => f.time.now),
+    { status: "reconciliation-required", phase: "completion" },
+  );
+  assert.equal(rollback.injected(), true);
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
+  await scoped(f.db, c, async (tx) =>
+    assert.equal((await tx.list("processing-output-receipt")).length, 1),
+  );
+  assert.equal(
+    (
+      await reconcileTextOutput(
+        f.jobs,
+        f.outputs,
+        c,
+        { ...request, output: "recover-stored" },
+        () => f.time.now,
+      )
+    ).status,
+    "completed",
+  );
+});
+
+test("pre-abort, regressed clock and a hung source leave work unresolved without late completion", async (t) => {
+  const f = await fixture(t),
+    stopped = new AbortController();
+  stopped.abort();
+  const before = f.reads();
+  assert.deepEqual(
+    await reconcileTextOutput(f.jobs, f.outputs, c, request, () => f.time.now, {
+      signal: stopped.signal,
+    }),
+    { status: "reconciliation-required", phase: "inspection" },
+  );
+  assert.equal(f.reads(), before);
+  assert.deepEqual(
+    await reconcileTextOutput(
+      f.jobs,
+      f.outputs,
+      c,
+      request,
+      () => "2025-12-31T23:59:59Z",
+    ),
+    { status: "reconciliation-required", phase: "inspection" },
+  );
+  let finish!: (value: Awaited<ReturnType<typeof f.source>>) => void;
+  let signal: AbortSignal | undefined;
+  const outputs = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      readSource: async (_j, _ctx, s) => {
+        signal = s;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    },
+    () => f.time.now,
+  );
+  assert.deepEqual(
+    await reconcileTextOutput(f.jobs, outputs, c, request, () => f.time.now, {
+      timeoutMs: 30,
+    }),
+    { status: "reconciliation-required", phase: "output" },
+  );
+  assert.equal(signal?.aborted, true);
+  finish(await f.source());
+  await new Promise((r) => setImmediate(r));
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
+  await scoped(f.db, c, async (tx) =>
+    assert.deepEqual(await tx.list("processing-output-receipt"), []),
+  );
+});
+
+test("blocked verification beyond the total deadline cannot authorize a completion", async (t) => {
+  const f = await fixture(t, false);
+  const outputs = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      authorize: async () => {
+        const until = performance.now() + 50;
+        while (performance.now() < until) {}
+        return true;
+      },
+    },
+    () => f.time.now,
+  );
+  assert.deepEqual(
+    await reconcileTextOutput(
+      f.jobs,
+      outputs,
+      c,
+      { ...request, output: "recover-stored" },
+      () => f.time.now,
+      { timeoutMs: 10 },
+    ),
+    { status: "reconciliation-required", phase: "output" },
+  );
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
+  assert.deepEqual(await readFile(f.objectPath), f.ciphertext);
+});
+
+test("acknowledged completion stays completed after cancellation during a delayed SQL acknowledgement", async (t) => {
+  const f = await fixture(t, false),
+    stop = new AbortController();
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>((r) => {
+      entered = r;
+    }),
+    wait = new Promise<void>((r) => {
+      release = r;
+    });
+  const db: Database = {
+    transaction: async (fn) => {
+      let completed = false;
+      const result = await f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              values?.includes("processing.completed")
+            )
+              completed = true;
+            return result;
+          },
+        }),
+      );
+      if (completed) {
+        stop.abort();
+        entered();
+        await wait;
+      }
+      return result;
+    },
+    close: async () => {},
+  };
+  const jobs = new TextProcessingJobs(
+    db,
+    f.jobPolicy,
+    {
+      authorizeStart: async () => true,
+      verifyOutcome: f.outputs.verifyOutcome.bind(f.outputs),
+    },
+    () => f.time.now,
+  );
+  const operation = reconcileTextOutput(
+    jobs,
+    f.outputs,
+    c,
+    { ...request, output: "recover-stored" },
+    () => f.time.now,
+    { signal: stop.signal },
+  );
+  await ready;
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "completed");
+  release();
+  assert.equal((await operation).status, "completed");
+});
+
+test("captured request identity and method receivers cannot drift during asynchronous verification", async (t) => {
+  const f = await fixture(t, false);
+  let entered!: () => void,
+    release!: () => void,
+    first = true;
+  const ready = new Promise<void>((r) => {
+      entered = r;
+    }),
+    wait = new Promise<void>((r) => {
+      release = r;
+    });
+  const outputs = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      readSource: async (_j, ctx) => {
+        assert.equal(ctx.actor.id, c.actor.id);
+        assert.equal(ctx.projectId, c.projectId);
+        if (first) {
+          first = false;
+          entered();
+          await wait;
+        }
+        return f.source();
+      },
+    },
+    () => f.time.now,
+  );
+  const context = structuredClone(c),
+    action = { ...request, output: "recover-stored" as const };
+  const operation = reconcileTextOutput(
+    f.jobs,
+    outputs,
+    context,
+    action,
+    () => f.time.now,
+  );
+  await ready;
+  (context.actor as { id: string }).id = "unlisted";
+  (context as { projectId: string }).projectId = "foreign";
+  (action as { jobId: string }).jobId = "other";
+  f.jobs.complete = async () => {
+    throw Error("captured receiver must be used");
+  };
+  release();
+  assert.equal((await operation).status, "completed");
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "completed");
+});
+
+test("competing explicit managers converge on one completion; uncertain contenders can explicitly reread", async (t) => {
+  const f = await fixture(t);
+  const second = { ...c, actor: { ...c.actor, id: "second" } };
+  const values = await Promise.all([
+    reconcileTextOutput(f.jobs, f.outputs, c, request, () => f.time.now),
+    reconcileTextOutput(f.jobs, f.outputs, second, request, () => f.time.now),
+  ]);
+  assert.ok(values.some((v) => v.status === "completed"));
+  assert.equal((await f.jobs.read(c, "actual")).revision, 4);
+  const replay = await reconcileTextOutput(
+    f.jobs,
+    f.outputs,
+    second,
+    { ...request, output: "recover-stored" },
+    () => f.time.now,
+  );
+  assert.equal(replay.status, "completed");
+  await scoped(f.db, c, async (tx) => {
+    assert.equal((await tx.list("processing-output-receipt")).length, 1);
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+});
+
+test("a same-ID output service from another execution cannot complete this ledger", async (t) => {
+  const f = await fixture(t, false),
+    other = await setup(t);
+  const jobs = new TextProcessingJobs(
+    other.db,
+    { ...other.policy, verificationTimeoutMs: 1000 },
+    {
+      authorizeStart: async () => true,
+      // Even a host misconfiguration accepting any receipt cannot bypass coordinator binding.
+      verifyOutcome: async () => true,
+    },
+    () => other.time.now,
+  );
+  await jobs.submit(c, { ...input, id: "actual" }, "actual");
+  await jobs.lease(w, "actual", 1);
+  await jobs.consume(w, "actual", 2);
+  assert.deepEqual(
+    await reconcileTextOutput(
+      jobs,
+      f.outputs,
+      c,
+      { ...request, output: "recover-stored" },
+      () => other.time.now,
+    ),
+    { status: "reconciliation-required", phase: "output" },
+  );
+  assert.equal((await jobs.read(c, "actual")).job.status, "consumed");
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
 });
