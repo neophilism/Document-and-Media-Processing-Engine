@@ -27,3 +27,7 @@ Explicit manager-only retry lineage can queue one deterministic successor of an 
 ## Single-job worker integration
 
 [Text worker](TEXT_WORKER.md) joins the accepted ledger and UTF8 processor through host source/private-storage callbacks, consuming before I/O and preserving uncertainty after errors/timeouts. It is not a daemon or qualified object/proof service; downstream gateways must enforce current policy and verify persisted private bytes independently.
+
+## Authenticated Evidence source integration
+
+[Evidence text source](EVIDENCE_SOURCE.md) connects the single-job worker to the accepted Evidence facade through a separately pinned service SDK contract, keeping each engine database separate. It repeats current processing-policy checks, authenticates Evidence calls and checks exact clean plaintext metadata and verified bytes before/after reading. Neither post-read checks nor a consumed snapshot are distributed permission fencing. Private output storage/receipt and deployment qualification remain separate.

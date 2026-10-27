@@ -1,6 +1,12 @@
 import { extractUtf8 } from "./index.ts";
 import type { ProcessingInput, TextDerivative } from "./index.ts";
-import { digest, invariant, refKey, validTime } from "./contracts.ts";
+import {
+  digest,
+  invariant,
+  refKey,
+  requireScope,
+  validTime,
+} from "./contracts.ts";
 import type { Context } from "./contracts.ts";
 import { TextProcessingJobs } from "./text-jobs.ts";
 import type { TextJobOutcome, TextJobSnapshot } from "./text-jobs.ts";
@@ -111,6 +117,7 @@ export async function runLeasedTextJob(
       "invalid_source",
       "Exact source byte budget required",
     );
+    requireScope(base, supplied.source);
     invariant(
       refKey(supplied.source) === refKey(consumed.job.source) &&
         supplied.sha256 === consumed.job.sourceSha256 &&

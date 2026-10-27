@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 62,
+  "testsPassed": 68,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -15,7 +15,8 @@
     "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf",
     "src/translation.ts": "1df01ee05bf34e53d5635f0cb9e95068e41f9639cd89047ca83b644c5491e2cc",
     "src/text-jobs.ts": "486728bb26352cab39e7cac30d167ce0a409e702ab3c5ae1e92b04530ef8e550",
-    "src/text-worker.ts": "58a54450c91abbb3b2fd22894ac7ab5627f4330169727f79262922c8e47227af"
+    "src/text-worker.ts": "745162ba19064535661a9cf200503b540c20c43ccd67a263f5479cf227b9f5df",
+    "src/evidence-source.ts": "487659cff006bfc5276a672f801fc42015b8401fa0b586b2bc824a9b390b45be"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",
@@ -67,5 +68,17 @@
     "services": "Controlled source/private-storage callbacks over actual restricted migrated PGlite ledger",
     "realObjectReceiptNetworkAndLiveAcceptance": "not_performed",
     "finalHeadCi": "required_before_merge"
+  },
+  "evidenceSource": {
+    "newRestrictedMigrationGroups": 6,
+    "facadePin": "c9aafd0cc7d655e4dc3f8b5b8b833ef102d4cf2b",
+    "database": "Separate actual restricted migrated Evidence and Processing PGlite databases",
+    "objects": "Real temporary encrypted private object store",
+    "scanner": "Synthetic test-only port; no malware qualification",
+    "liveNetworkServiceAcceptance": "not_performed",
+    "finalHeadCi": "required_before_merge",
+    "installedPackage": "All six public-export integration groups passed over actual encrypted objects and separate restricted migrated PGlite databases",
+    "initialSourceCi": "92d197d396b8134dffe2efe5fd8061a49acbe8ef",
+    "initialSourceCiRun": 40508574116
   }
 }
