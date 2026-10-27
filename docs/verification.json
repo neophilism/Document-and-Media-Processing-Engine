@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 38,
+  "testsPassed": 46,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -14,7 +14,7 @@
     "src/index.ts": "4a24126ff5b081658cff0745a6e802a50131db8caf6e7d0a2947853e82316b25",
     "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf",
     "src/translation.ts": "1df01ee05bf34e53d5635f0cb9e95068e41f9639cd89047ca83b644c5491e2cc",
-    "src/text-jobs.ts": "49f21c65e212fb2a1522534bd642994a99b6c466fdc803895a89c365bcece63a"
+    "src/text-jobs.ts": "0aaf017e23b2b2ce56397b8359937fa08cdec255945906b1ddfd2f49d2a48b4e"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",
@@ -33,5 +33,11 @@
     "clock": "Fresh time after project lock, including simulated lock delay test",
     "networkSessionAndLiveAcceptance": "not_performed",
     "dispatcherSourceReceiptServices": "not_integrated"
+  },
+  "textJobFailure": {
+    "newIntegrationGroups": 8,
+    "database": "Actual pinned migrations and restricted PGlite login",
+    "productionNoOutputReceiptService": "not_qualified",
+    "liveAcceptance": "not_performed"
   }
 }

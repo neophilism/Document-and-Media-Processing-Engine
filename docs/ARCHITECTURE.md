@@ -15,3 +15,5 @@ The opt-in caption importer is documented in CAPTIONS.md. It preserves supplied 
 ## Durable text job orchestration
 
 [Text jobs](TEXT_JOBS.md) add dedicated-database submission, purpose/actor-bound leases, one-shot consumption, fresh clock checks, conservative consumed uncertainty and verified private outcome references. A production dispatch daemon, source/object service integration, OCR/model orchestration, quality/cost qualification and network-session/live acceptance remain pending.
+
+Text jobs also expose opt-in verified terminal no-output settlement. Processor errors and lease expiry alone remain uncertain. The optional verifier must establish stopped execution and no possible late derivative; settlement atomically records a failure receipt without issuing a retry permit.
