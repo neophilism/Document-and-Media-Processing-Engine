@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-27T01:52:30Z",
+  "observedAt": "2026-10-27T05:56:11Z",
   "units": [
     {
       "id": "DMP-001",
@@ -68,7 +68,8 @@
       "origin": "original",
       "prs": [],
       "contributingPrs": [
-        4
+        4,
+        5
       ],
       "dependsOn": [
         "DMP-002"
@@ -79,7 +80,7 @@
         "Audio/video transcription and translation"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "Partial: PR4 implements bounded exact-source WebVTT caption import with media edition bindings, original UTF-8 byte anchors and validated timing. This is supplied-transcript review, not speech recognition. Recognition, translation, durable workers and live qualification remain pending."
+      "implementationStatus": "Partial: PR4 implements bounded exact-source WebVTT caption import with media edition bindings, original UTF-8 byte anchors and validated timing. This is supplied-transcript review, not speech recognition. Recognition, translation, durable workers and live qualification remain pending. PR5 adds a bounded local text-translation callback adapter with exact source/text/model/purpose provenance and cancellation; no bundled model, isolation or linguistic acceptance is claimed."
     },
     {
       "id": "DMP-005",

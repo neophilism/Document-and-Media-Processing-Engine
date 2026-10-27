@@ -179,3 +179,62 @@ test("source, context, manifest and option snapshots do not drift during asynchr
   assert.equal(result.purpose, c.purpose);
   assert.equal(result.targetLanguage, "fr");
 });
+
+test("active cancellation aborts the translator and rejects a later successful callback", async () => {
+  const controller = new AbortController();
+  let start!: () => void, finish!: (value: { text: string }) => void;
+  let observed: AbortSignal | undefined;
+  const ready = new Promise<void>((resolve) => {
+    start = resolve;
+  });
+  const work = adapter((_request, signal) => {
+    observed = signal;
+    start();
+    return new Promise((resolve) => {
+      finish = resolve;
+    });
+  })(c, input(), { ...options, signal: controller.signal });
+  await ready;
+  controller.abort();
+  await assert.rejects(work, { code: "translation_aborted" });
+  assert.equal(observed?.aborted, true);
+  finish({ text: "too late" });
+  await new Promise((resolve) => setImmediate(resolve));
+});
+test("model declarations and per-call bounds fail closed, and model/version changes bind output identity", async () => {
+  for (const declaration of [
+    { ...manifest, modelSha256: "not-a-digest" },
+    { ...manifest, languagePairs: [] },
+    {
+      ...manifest,
+      languagePairs: [...manifest.languagePairs, ...manifest.languagePairs],
+    },
+    { ...manifest, languagePairs: [{ source: "en", target: "en" }] },
+    { ...manifest, languagePairs: [{ source: "*", target: "fr" }] },
+  ])
+    assert.throws(() =>
+      createLocalTranslationAdapter({
+        ...declaration,
+        translate: async () => ({ text: "ok" }),
+      }),
+    );
+  for (const limit of [
+    { timeoutMs: 0 },
+    { timeoutMs: 30001 },
+    { maxOutputBytes: 0 },
+    { maxOutputBytes: 65537 },
+    { timeoutMs: NaN },
+  ])
+    await assert.rejects(adapter()(c, input(), { ...options, ...limit }), {
+      code: "invalid_limits",
+    });
+  const result = await adapter()(c, input(), options);
+  for (const change of [{ version: "2" }, { modelSha256: "b".repeat(64) }]) {
+    const changed = await createLocalTranslationAdapter({
+      ...manifest,
+      ...change,
+      translate: async () => ({ text: result.text }),
+    })(c, input(), options);
+    assert.notEqual(changed.sha256, result.sha256);
+  }
+});

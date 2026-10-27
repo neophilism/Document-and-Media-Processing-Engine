@@ -7,3 +7,7 @@ UTF8 text extraction, transcript structure/job validation and an opt-in isolated
 ## Timed captions
 
 The opt-in caption importer is documented in CAPTIONS.md. It preserves supplied transcript timing, exact caption/media edition bindings and original source byte ranges, retaining payload as literal untrusted text. Speech recognition and translation remain separate pending capabilities.
+
+## Local translation execution
+
+[Local text translation](TRANSLATION.md) adds a fixed-manifest callback adapter with exact source/decoded-text/model/purpose provenance, finite budgets and cancellation. It provides no bundled or isolated model; the host must separately verify those runtime properties. Linguistic accuracy, recognition, worker integration and live acceptance remain pending.

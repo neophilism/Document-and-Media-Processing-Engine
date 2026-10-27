@@ -95,6 +95,13 @@ export function createLocalTranslationAdapter(translator: LocalTranslator) {
   );
   const pairs = new Set<string>();
   for (const pair of manifest.languagePairs) {
+    invariant(
+      Object.keys(pair).length === 2 &&
+        Object.hasOwn(pair, "source") &&
+        Object.hasOwn(pair, "target"),
+      "invalid_model",
+      "Exact language pair fields required",
+    );
     language(pair.source);
     language(pair.target);
     invariant(
