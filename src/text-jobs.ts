@@ -32,6 +32,14 @@ export type TextJobFailure = Readonly<{
   processorStopped: true;
   noDerivative: true;
 }>;
+/** An explicit successor of one immutable, verified failed edition. */
+export type TextJobRetry = Readonly<{
+  rootJobId: string;
+  generation: number;
+  parentJobId: string;
+  parentFailedRevision: number;
+  failureReceipt: Ref;
+}>;
 export type TextJob = TextJobInput &
   Readonly<{
     purpose: string;
@@ -51,6 +59,7 @@ export type TextJob = TextJobInput &
     submittedBy: string;
     consumedAt: string | null;
     failure?: TextJobFailure;
+    retry?: TextJobRetry;
   }>;
 export type TextJobSnapshot = Readonly<{ job: TextJob; revision: number }>;
 export type TextJobPolicy = Scope &
@@ -576,6 +585,128 @@ export class TextProcessingJobs {
               failure,
             }),
             digest({ id, event: "failed" }),
+          );
+          return json({ job, revision: saved.revision });
+        },
+      ),
+    ) as Promise<unknown> as Promise<TextJobSnapshot>;
+  }
+  /** Queues one linked successor; this never leases or consumes the new job. */
+  async retryFailed(
+    context: Context,
+    id: string,
+    failedRevision: number,
+    commandId: string,
+  ): Promise<TextJobSnapshot> {
+    const c = structuredClone(context);
+    this.#manager(c);
+    invariant(
+      Number.isSafeInteger(failedRevision) && failedRevision > 1,
+      "invalid_revision",
+      "Exact failed revision required",
+    );
+    const before = await this.read(c, id);
+    invariant(
+      before.revision === failedRevision,
+      "revision_conflict",
+      "Retry must bind the exact failed edition",
+    );
+    invariant(
+      before.job.status === "failed" && before.job.failure,
+      "job_unavailable",
+      "Verified terminal no-output work required",
+    );
+    const failure = before.job.failure;
+    const check = this.#checks.verifyNoOutput;
+    invariant(
+      check,
+      "verification_unavailable",
+      "Trusted no-output verification is not configured",
+    );
+    const generation = (before.job.retry?.generation ?? 0) + 1;
+    invariant(
+      Number.isSafeInteger(generation) && generation > 0 && generation <= 16,
+      "retry_limit",
+      "A lineage permits at most sixteen explicit retry generations",
+    );
+    await verify(this.#timeout, (signal) =>
+      check(
+        structuredClone(before.job),
+        structuredClone(failure),
+        failedRevision - 1,
+        structuredClone(c),
+        signal,
+      ),
+    );
+    // One deterministic target per parent edition, independent of actor/command.
+    // put(expectedRevision=0) prevents a second successor even after it advances.
+    const childId = `retry-${digest({ parentJobId: id, failedRevision })}`;
+    return scoped(this.#db, c, (tx) =>
+      tx.idempotent(
+        commandId,
+        json({
+          operation: "retry-failed-text",
+          id,
+          failedRevision,
+          purpose: c.purpose,
+          actorKind: c.actor.kind,
+        }),
+        async () => {
+          const parent = await tx.get<TextJob>("text-processing-job", key(id));
+          invariant(
+            parent &&
+              parent.revision === failedRevision &&
+              parent.value.status === "failed" &&
+              canonical(parent.value) === canonical(before.job),
+            "revision_conflict",
+            "Failed job changed during verification",
+          );
+          const job: TextJob = {
+            id: childId,
+            source: parent.value.source,
+            sourceSha256: parent.value.sourceSha256,
+            sourceBytes: parent.value.sourceBytes,
+            language: parent.value.language,
+            purpose: parent.value.purpose,
+            profile: parent.value.profile,
+            status: "queued",
+            workerId: null,
+            workerKind: null,
+            leaseExpiresAt: null,
+            outcome: null,
+            submittedAt: c.now,
+            submittedBy: c.actor.id,
+            consumedAt: null,
+            retry: {
+              rootJobId: parent.value.retry?.rootJobId ?? id,
+              generation,
+              parentJobId: id,
+              parentFailedRevision: failedRevision,
+              failureReceipt: failure.receipt,
+            },
+          };
+          const saved = await tx.put(
+            "text-processing-job",
+            key(childId),
+            0,
+            job,
+          );
+          await tx.audit(
+            "processing.retry.queued",
+            json({
+              jobId: childId,
+              revision: saved.revision,
+              retry: job.retry,
+            }),
+          );
+          await tx.enqueue(
+            "processing.queued",
+            json({
+              jobId: childId,
+              revision: saved.revision,
+              retry: job.retry,
+            }),
+            digest({ id: childId, event: "queued" }),
           );
           return json({ job, revision: saved.revision });
         },
