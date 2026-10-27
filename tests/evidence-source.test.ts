@@ -238,3 +238,116 @@ test("bounded credential lookup, pre-abort and sanitized callback failures do no
   );
   assert.equal(calls, 0);
 });
+
+test("exact metadata and returned-byte mismatches fail closed rather than trusting facade-shaped values", async (t) => {
+  const f = await fixture(t);
+  await f.scan();
+  const job = await f.consume();
+  const extra = structuredClone(job);
+  Object.assign(extra.job.source, { credential: "must-not-propagate" });
+  await assert.rejects(f.source()(extra, w, new AbortController().signal));
+  for (const mutate of [
+    (x: Awaited<ReturnType<EvidenceService["inspect"]>>) => {
+      x.version = { ...x.version, sha256: "b".repeat(64) };
+    },
+    (x: Awaited<ReturnType<EvidenceService["inspect"]>>) => {
+      x.version = { ...x.version, byteLength: 6 };
+    },
+    (x: Awaited<ReturnType<EvidenceService["inspect"]>>) => {
+      x.version = { ...x.version, mediaType: "application/pdf" };
+    },
+    (x: Awaited<ReturnType<EvidenceService["inspect"]>>) => {
+      x.version = { ...x.version, allowedPurposes: ["other"] };
+    },
+    (x: Awaited<ReturnType<EvidenceService["inspect"]>>) => {
+      x.version = {
+        ...x.version,
+        ref: { ...x.version.ref, projectId: "foreign" },
+      };
+    },
+  ]) {
+    let reads = 0;
+    const port = {
+      inspect: async (...args: Parameters<EvidenceService["inspect"]>) => {
+        const v = await f.service.inspect(...args);
+        mutate(v);
+        return v;
+      },
+      read: async (...args: Parameters<EvidenceService["read"]>) => {
+        reads++;
+        return f.service.read(...args);
+      },
+    };
+    await assert.rejects(
+      createEvidenceTextSource(port, {
+        credential: async () => author,
+        authorizeProcessing: async () => true,
+      })(job, w, new AbortController().signal),
+    );
+    assert.equal(reads, 0);
+  }
+  for (const corrupt of [false, true]) {
+    let inspections = 0;
+    const port = {
+      inspect: async (...args: Parameters<EvidenceService["inspect"]>) => {
+        const v = await f.service.inspect(...args);
+        if (++inspections === 2 && !corrupt) v.revision++;
+        return v;
+      },
+      read: async (...args: Parameters<EvidenceService["read"]>) => {
+        const b = await f.service.read(...args);
+        if (corrupt) b[0] = 0;
+        return b;
+      },
+    };
+    await assert.rejects(
+      createEvidenceTextSource(port, {
+        credential: async () => author,
+        authorizeProcessing: async () => true,
+      })(job, w, new AbortController().signal),
+    );
+  }
+});
+test("captured source context is stable while current processing authority is rechecked after bytes are read", async (t) => {
+  const f = await fixture(t);
+  await f.scan();
+  const job = await f.consume();
+  let checks = 0;
+  await assert.rejects(
+    createEvidenceTextSource(f.service, {
+      credential: async () => author,
+      authorizeProcessing: async () => ++checks === 1,
+    })(job, w, new AbortController().signal),
+  );
+  assert.equal(checks, 2);
+  let entered!: () => void, finish!: (v: string) => void;
+  const ready = new Promise<void>((r) => {
+    entered = r;
+  });
+  const context = structuredClone(w),
+    supplied = structuredClone(job);
+  const source = createEvidenceTextSource(f.service, {
+    timeoutMs: 2000,
+    authorizeProcessing: async (j, ctx) => {
+      (j.job.source as { id: string }).id = "callback-mutated";
+      (ctx.actor as { id: string }).id = "callback-mutated";
+      return true;
+    },
+    credential: async (ctx) => {
+      assert.equal(ctx.actor.id, w.actor.id);
+      entered();
+      return new Promise((r) => {
+        finish = r;
+      });
+    },
+  });
+  const pending = source(supplied, context, new AbortController().signal);
+  await ready;
+  (supplied.job.source as { id: string }).id = "caller-mutated";
+  (context as { purpose: string }).purpose = "caller-mutated";
+  finish(author);
+  const value = await pending;
+  assert.deepEqual(value.source, f.acquired.ref);
+  assert.deepEqual(value.bytes, bytes);
+  assert.equal(value.processingAllowed, true);
+});

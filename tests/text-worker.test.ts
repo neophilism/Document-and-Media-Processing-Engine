@@ -92,6 +92,7 @@ test("wrong source hashes byte lengths references quarantine and nonboolean perm
     { sha256: "b".repeat(64) },
     { bytes: new Uint8Array() },
     { source: { ...input.source, revision: 7 } },
+    { source: { ...input.source, projectId: "foreign" } },
     { scanStatus: "quarantined" },
     { processingAllowed: 1 },
   ].entries()) {

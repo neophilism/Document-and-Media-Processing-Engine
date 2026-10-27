@@ -6,6 +6,7 @@ import {
   invariant,
   refKey,
   requireScope,
+  validateRef,
 } from "./contracts.ts";
 import type { Context } from "./contracts.ts";
 import type { TextJobSnapshot } from "./text-jobs.ts";
@@ -70,6 +71,15 @@ export function createEvidenceTextSource(
     }
     try {
       requireScope(c, job.job.source);
+      validateRef(job.job.source);
+      invariant(
+        Object.keys(job.job.source).length === 5 &&
+          Object.keys(job.job.source).every((k) =>
+            ["tenantId", "projectId", "kind", "id", "revision"].includes(k),
+          ),
+        "source_unavailable",
+        "Exact source reference required",
+      );
       invariant(
         job.job.purpose === c.purpose &&
           job.job.source.kind === "evidence" &&
@@ -107,6 +117,8 @@ export function createEvidenceTextSource(
       function admitted(
         value: Awaited<ReturnType<EvidenceService["inspect"]>>,
       ) {
+        validateRef(value.version.ref);
+        requireScope(c, value.version.ref);
         invariant(
           value.scan === "clean" &&
             refKey(value.version.ref) === refKey(ref) &&
