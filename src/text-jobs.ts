@@ -104,18 +104,33 @@ async function verify(
   timeout: number,
   callback: (signal: AbortSignal) => Promise<boolean>,
 ) {
-  const controller = new AbortController();
+  const controller = new AbortController(),
+    deadline = performance.now() + timeout;
+  const withinDeadline = () => {
+    invariant(
+      !controller.signal.aborted && performance.now() < deadline,
+      "verification_timeout",
+      "Trusted verification timed out",
+    );
+  };
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
-      Promise.resolve()
-        .then(() => callback(controller.signal))
-        .catch(() => {
+      Promise.resolve().then(async () => {
+        withinDeadline();
+        let result: boolean;
+        try {
+          result = await callback(controller.signal);
+        } catch {
+          // Callback diagnostics (including DomainErrors) are never authority.
           throw new DomainError(
             "verification_unavailable",
             "Trusted verification failed",
           );
-        }),
+        }
+        withinDeadline();
+        return result;
+      }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
           controller.abort();
@@ -128,6 +143,7 @@ async function verify(
         }, timeout);
       }),
     ]);
+    withinDeadline();
     invariant(
       result === true,
       "verification_denied",
@@ -135,6 +151,7 @@ async function verify(
     );
   } finally {
     if (timer) clearTimeout(timer);
+    controller.abort();
   }
 }
 /** A dedicated processing database is required. This ledger does not read bytes or run a processor. */
