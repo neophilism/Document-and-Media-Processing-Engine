@@ -193,7 +193,7 @@ test(
     });
     let consuming: Promise<unknown> | undefined;
     try {
-      await locked.promise;
+      await Promise.race([locked.promise, hold]);
       consuming = f.jobsB.consume(f.w, "one", 2);
       // Attach immediately so a failed admission cannot become an unhandled rejection.
       const observed = consuming.then(
