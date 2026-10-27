@@ -11,6 +11,7 @@ import {
   validateRef,
 } from "./contracts.ts";
 import type { Context, Json, Ref, Scope } from "./contracts.ts";
+import { requireNoOwnedTextOutput } from "./text-output-records.ts";
 export type TextJobInput = Readonly<{
   id: string;
   source: Ref;
@@ -556,8 +557,15 @@ export class TextProcessingJobs {
         signal,
       ),
     );
-    return scoped(this.#db, c, (tx) =>
-      tx.idempotent(
+    return scoped(this.#db, c, async (tx) => {
+      // Lock and check before cached receipts too. A pending intent already
+      // represents possible bytes; absent receipts never clear that uncertainty.
+      await tx.audit("processing.no-output.checked", {
+        jobId: id,
+        consumedRevision: consumedRevision,
+      });
+      await requireNoOwnedTextOutput(tx, id, consumedRevision);
+      return tx.idempotent(
         commandId,
         json({
           operation: "settle-text-no-output",
@@ -605,8 +613,8 @@ export class TextProcessingJobs {
           );
           return json({ job, revision: saved.revision });
         },
-      ),
-    ) as Promise<unknown> as Promise<TextJobSnapshot>;
+      );
+    }) as Promise<unknown> as Promise<TextJobSnapshot>;
   }
   /** Queues one linked successor; this never leases or consumes the new job. */
   async retryFailed(
@@ -658,8 +666,15 @@ export class TextProcessingJobs {
     // One deterministic target per parent edition, independent of actor/command.
     // put(expectedRevision=0) prevents a second successor even after it advances.
     const childId = `retry-${digest({ parentJobId: id, failedRevision })}`;
-    return scoped(this.#db, c, (tx) =>
-      tx.idempotent(
+    return scoped(this.#db, c, async (tx) => {
+      // Lock and check before cached receipts too. A pending intent already
+      // represents possible bytes; absent receipts never clear that uncertainty.
+      await tx.audit("processing.retry.checked", {
+        jobId: id,
+        consumedRevision: failedRevision - 1,
+      });
+      await requireNoOwnedTextOutput(tx, id, failedRevision - 1);
+      return tx.idempotent(
         commandId,
         json({
           operation: "retry-failed-text",
@@ -727,8 +742,8 @@ export class TextProcessingJobs {
           );
           return json({ job, revision: saved.revision });
         },
-      ),
-    ) as Promise<unknown> as Promise<TextJobSnapshot>;
+      );
+    }) as Promise<unknown> as Promise<TextJobSnapshot>;
   }
   async cancel(
     context: Context,

@@ -22,12 +22,13 @@ import type {
   TextJobOutcome,
   TextJobPolicy,
 } from "./text-jobs.ts";
-const INTENT = "processing-output-intent",
-  ARTIFACT = "processing-private-text",
-  RECEIPT = "processing-output-receipt";
+import {
+  INTENT,
+  ARTIFACT,
+  RECEIPT,
+  textOutputId as idFor,
+} from "./text-output-records.ts";
 const json = (v: unknown): Json => JSON.parse(canonical(v));
-const idFor = (id: string, revision: number) =>
-  digest({ jobId: id, consumedRevision: revision });
 function binding(j: TextJob) {
   return {
     id: j.id,
