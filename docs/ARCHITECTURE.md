@@ -23,3 +23,7 @@ Text jobs also expose opt-in verified terminal no-output settlement. Processor e
 [PostgreSQL contention tests](POSTGRES_TESTS.md) qualify specific ledger invariants using separate restricted TCP sessions on a disposable CI PostgreSQL 17 service, including a directly observed lock wait. These tests are distinct from embedded PGlite evidence and do not qualify deployment TLS, failover, production throughput or source/receipt services.
 
 Explicit manager-only retry lineage can queue one deterministic successor of an exact verified failed edition after fresh stopped/no-output verification. Failed parents stay immutable, children preserve exact input/profile/purpose, and each needs fresh lease/start authorization/consumption. Retry never clears unresolved consumption; a sixteen-generation cap bounds each lineage. Real receipt and liveness services remain unqualified.
+
+## Single-job worker integration
+
+[Text worker](TEXT_WORKER.md) joins the accepted ledger and UTF8 processor through host source/private-storage callbacks, consuming before I/O and preserving uncertainty after errors/timeouts. It is not a daemon or qualified object/proof service; downstream gateways must enforce current policy and verify persisted private bytes independently.
