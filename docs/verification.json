@@ -39,5 +39,13 @@
     "database": "Actual pinned migrations and restricted PGlite login",
     "productionNoOutputReceiptService": "not_qualified",
     "liveAcceptance": "not_performed"
+  },
+  "postgresContention": {
+    "groups": 5,
+    "localExecution": "not_performed_no_PostgreSQL_or_Docker",
+    "initialFourGroupCiRun": 40476391577,
+    "initialSource": "32593e8e8356ef6424be21851f587332b7362fe8",
+    "finalHeadCi": "required_before_merge",
+    "productionDeployment": "not_qualified"
   }
 }
