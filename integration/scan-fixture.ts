@@ -1,0 +1,52 @@
+// Fixed image-only fictional PDF. Raster generated with Pillow/DejaVuSans 64px,
+// grayscale 1200x260, text "Fictional record" at (50,80); no embedded text layer.
+const raster = Buffer.from(
+  "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",
+  "base64",
+);
+export function scannedPdf(): Buffer {
+  const stream = Buffer.from("q 600 0 0 130 0 0 cm /Im0 Do Q");
+  const objects = [
+    Buffer.from("<< /Type /Catalog /Pages 2 0 R >>"),
+    Buffer.from("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+    Buffer.from(
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 130] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>",
+    ),
+    Buffer.concat([
+      Buffer.from(
+        `<< /Type /XObject /Subtype /Image /Width 1200 /Height 260 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${raster.length} >>\nstream\n`,
+      ),
+      raster,
+      Buffer.from("\nendstream"),
+    ]),
+    Buffer.concat([
+      Buffer.from(`<< /Length ${stream.length} >>\nstream\n`),
+      stream,
+      Buffer.from("\nendstream"),
+    ]),
+  ];
+  const chunks = [Buffer.from("%PDF-1.4\n")],
+    offsets = [0];
+  let length = chunks[0]!.length;
+  for (const [index, object] of objects.entries()) {
+    offsets.push(length);
+    const chunk = Buffer.concat([
+      Buffer.from(`${index + 1} 0 obj\n`),
+      object,
+      Buffer.from("\nendobj\n"),
+    ]);
+    chunks.push(chunk);
+    length += chunk.length;
+  }
+  chunks.push(
+    Buffer.from(
+      `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n` +
+        offsets
+          .slice(1)
+          .map((n) => String(n).padStart(10, "0") + " 00000 n \n")
+          .join("") +
+        `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`,
+    ),
+  );
+  return Buffer.concat(chunks);
+}
