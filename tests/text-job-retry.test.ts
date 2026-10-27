@@ -203,3 +203,251 @@ test("post-COMMIT lost retry acknowledgement replays the same child with no dupl
     ),
   );
 });
+
+test("retry and historical queue replay require current manager mapping and fresh strict proof verification", async (t) => {
+  const { jobs, db, policy, checks } = await failed(t);
+  const child = await jobs.retryFailed(c, "one", 4, "retry");
+  const revoked = new TextProcessingJobs(
+    db,
+    { ...policy, managerIds: [] },
+    checks,
+    () => c.now,
+  );
+  await assert.rejects(revoked.retryFailed(c, "one", 4, "retry"), {
+    code: "manager_required",
+  });
+  const without = new TextProcessingJobs(
+    db,
+    policy,
+    {
+      authorizeStart: checks.authorizeStart,
+      verifyOutcome: checks.verifyOutcome,
+    },
+    () => c.now,
+  );
+  await assert.rejects(without.retryFailed(c, "one", 4, "retry"), {
+    code: "verification_unavailable",
+  });
+  for (const callback of [
+    async () => false,
+    async () => 1 as unknown as boolean,
+    async () => {
+      throw Error("private receipt diagnostics");
+    },
+  ]) {
+    const denied = new TextProcessingJobs(
+      db,
+      policy,
+      { ...checks, verifyNoOutput: callback },
+      () => c.now,
+    );
+    await assert.rejects(denied.retryFailed(c, "one", 4, "retry"), (error) => {
+      assert.ok(
+        ["verification_denied", "verification_unavailable"].includes(
+          (error as { code: string }).code,
+        ),
+      );
+      assert.equal(
+        String(error).includes("private receipt diagnostics"),
+        false,
+      );
+      return true;
+    });
+  }
+  assert.deepEqual(await jobs.read(c, child.job.id), child);
+});
+
+test("timed-out retry proof cannot queue a late child and captured context/proof cannot be mutated by caller or verifier", async (t) => {
+  const { jobs, db, policy, checks } = await failed(t);
+  let signal: AbortSignal | undefined, finish!: (v: boolean) => void;
+  const late = new TextProcessingJobs(
+    db,
+    policy,
+    {
+      ...checks,
+      verifyNoOutput: async (_j, _p, _r, _c, s) => {
+        signal = s;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    },
+    () => c.now,
+  );
+  await assert.rejects(late.retryFailed(c, "one", 4, "late"), {
+    code: "verification_timeout",
+  });
+  assert.equal(signal?.aborted, true);
+  finish(true);
+  await new Promise((resolve) => setImmediate(resolve));
+  await scoped(db, c, async (tx) =>
+    assert.equal((await tx.list("text-processing-job")).length, 1),
+  );
+  let entered!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const guarded = new TextProcessingJobs(
+    db,
+    { ...policy, verificationTimeoutMs: 1000 },
+    {
+      ...checks,
+      verifyNoOutput: async (j, p, revision, context) => {
+        assert.equal(j.status, "failed");
+        assert.equal(revision, 3);
+        assert.deepEqual(p, proof);
+        assert.equal(context.actor.id, "owner");
+        (j.source as { id: string }).id = "verifier-changed";
+        (p.receipt as { id: string }).id = "verifier-changed";
+        (context.actor as { id: string }).id = "verifier-changed";
+        entered();
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    },
+    () => c.now,
+  );
+  const supplied = structuredClone(c);
+  const pending = guarded.retryFailed(supplied, "one", 4, "retry");
+  await ready;
+  (supplied.actor as { id: string }).id = "caller-changed";
+  (supplied as { purpose: string }).purpose = "caller-changed";
+  finish(true);
+  const child = await pending;
+  assert.equal(child.job.submittedBy, "owner");
+  assert.equal(child.job.purpose, c.purpose);
+  assert.deepEqual(child.job.source, input.source);
+  assert.deepEqual(child.job.retry?.failureReceipt, proof.receipt);
+  assert.deepEqual((await jobs.read(c, "one")).job.failure, proof);
+});
+
+test("post-outbox rollback removes child audit and idempotency atomically; preexisting deterministic IDs never overwrite", async (t) => {
+  const { jobs, db, policy, checks } = await failed(t);
+  let injected = false;
+  const broken: Database = {
+    transaction: (fn) =>
+      db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, v?: unknown[]) => {
+            const value = await q.query<T>(sql, v);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              v?.includes("processing.queued")
+            ) {
+              injected = true;
+              throw Error("injected after child outbox");
+            }
+            return value;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  await assert.rejects(
+    new TextProcessingJobs(broken, policy, checks, () => c.now).retryFailed(
+      c,
+      "one",
+      4,
+      "retry",
+    ),
+    /injected after child outbox/,
+  );
+  assert.equal(injected, true);
+  await scoped(db, c, async (tx) => {
+    assert.equal((await tx.list("text-processing-job")).length, 1);
+    assert.equal(
+      (await tx.audits()).filter((a) => a.type === "processing.retry.queued")
+        .length,
+      0,
+    );
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+  const id = `retry-${digest({ parentJobId: "one", failedRevision: 4 })}`;
+  await jobs.submit(c, { ...input, id }, "collision");
+  await assert.rejects(jobs.retryFailed(c, "one", 4, "retry"), {
+    code: "revision_conflict",
+  });
+  assert.equal((await jobs.read(c, id)).job.retry, undefined);
+  assert.equal((await jobs.read(c, "one")).job.status, "failed");
+  // A different parent demonstrates that the rolled-back command was not cached.
+  await jobs.submit(c, { ...input, id: "second" }, "second");
+  await jobs.lease(w, "second", 1);
+  await jobs.consume(w, "second", 2);
+  await jobs.settleNoOutput(w, "second", 3, proof, "second-failure");
+  const child = await jobs.retryFailed(c, "second", 4, "retry");
+  assert.equal(child.job.retry?.parentJobId, "second");
+});
+
+test("sixteen explicit generations preserve root lineage and each failure receipt; limit denies before new verification", async (t) => {
+  const { jobs, db, policy, checks } = await failed(t);
+  let currentId = "one";
+  for (let generation = 1; generation <= 16; generation++) {
+    const child = await jobs.retryFailed(
+      c,
+      currentId,
+      4,
+      `retry-${generation}`,
+    );
+    assert.equal(child.job.retry?.generation, generation);
+    assert.equal(child.job.retry?.rootJobId, "one");
+    assert.equal(child.job.retry?.parentJobId, currentId);
+    assert.equal(child.job.failure, undefined);
+    assert.equal(child.revision, 1);
+    assert.equal((await jobs.read(c, currentId)).job.status, "failed");
+    currentId = child.job.id;
+    await jobs.lease(w, currentId, 1);
+    await jobs.consume(w, currentId, 2);
+    const nextProof = {
+      ...proof,
+      receipt: { ...proof.receipt, id: `stopped-${generation}` },
+    };
+    await jobs.settleNoOutput(
+      w,
+      currentId,
+      3,
+      nextProof,
+      `failure-${generation}`,
+    );
+    if (generation < 16) {
+      // Reuse of an earlier command for a different parent is never a new child.
+      await assert.rejects(jobs.retryFailed(c, currentId, 4, "retry-1"), {
+        code: "idempotency_conflict",
+      });
+    }
+  }
+  let called = false;
+  const bounded = new TextProcessingJobs(
+    db,
+    policy,
+    {
+      ...checks,
+      verifyNoOutput: async () => {
+        called = true;
+        return true;
+      },
+    },
+    () => c.now,
+  );
+  await assert.rejects(bounded.retryFailed(c, currentId, 4, "too-many"), {
+    code: "retry_limit",
+  });
+  assert.equal(called, false);
+  await scoped(db, c, async (tx) => {
+    assert.equal((await tx.list("text-processing-job")).length, 17);
+    assert.equal(
+      (await tx.audits()).filter((a) => a.type === "processing.retry.queued")
+        .length,
+      16,
+    );
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+  await assert.rejects(
+    jobs.submit(
+      c,
+      { ...input, id: "forged", retry: { generation: 1 } } as typeof input,
+      "forged",
+    ),
+    { code: "invalid_job" },
+  );
+});

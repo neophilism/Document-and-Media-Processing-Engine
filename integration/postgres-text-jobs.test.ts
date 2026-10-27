@@ -377,3 +377,73 @@ test(
     assert.equal((await f.jobsB.read(f.w, "one")).revision, 2);
   },
 );
+
+test(
+  "independent network managers queue only one successor and replay never resets its consumed state",
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t, "network-retry");
+    await f.jobsA.consume(f.w, "one", 2);
+    const proof = {
+      receipt: { ...f.outcome.receipt, id: "stopped" },
+      reason: "processor-failed" as const,
+      processorStopped: true as const,
+      noDerivative: true as const,
+    };
+    await f.jobsA.settleNoOutput(f.w, "one", 3, proof, "failed");
+    const checked = barrier();
+    const secondContext = {
+      ...f.context,
+      actor: { ...f.context.actor, id: "second-owner" },
+    };
+    const policy = { ...f.policy, managerIds: ["owner", "second-owner"] };
+    const checks = { ...f.verification, verifyNoOutput: checked };
+    const left = new TextProcessingJobs(f.a, policy, checks, () => f.clock.now);
+    const right = new TextProcessingJobs(
+      f.b,
+      policy,
+      checks,
+      () => f.clock.now,
+    );
+    const commands = ["retry-left", "retry-right"];
+    const contexts = [f.context, secondContext];
+    const attempts = await Promise.allSettled([
+      left.retryFailed(contexts[0]!, "one", 4, commands[0]!),
+      right.retryFailed(contexts[1]!, "one", 4, commands[1]!),
+    ]);
+    const winner = attempts.findIndex((r) => r.status === "fulfilled");
+    assert.ok(winner >= 0);
+    assert.equal(attempts.filter((r) => r.status === "rejected").length, 1);
+    const result = attempts[winner]!;
+    assert.ok(result.status === "fulfilled");
+    const child = result.value;
+    assert.equal(child.job.retry?.parentFailedRevision, 4);
+    await f.jobsA.lease(f.w, child.job.id, 1);
+    await f.jobsA.consume(f.w, child.job.id, 2);
+    // A fresh pool and ordinary fixture verifier revalidate the failed proof.
+    const fresh = new TextProcessingJobs(
+      f.connect("retry-fresh"),
+      policy,
+      f.verification,
+      () => f.clock.now,
+    );
+    assert.deepEqual(
+      await fresh.retryFailed(contexts[winner]!, "one", 4, commands[winner]!),
+      child,
+    );
+    assert.equal((await fresh.read(f.w, child.job.id)).job.status, "consumed");
+    await assert.rejects(
+      fresh.retryFailed(f.context, "one", 4, "another-command"),
+    );
+    assert.equal((await fresh.read(f.context, "one")).revision, 4);
+    await scoped(f.b, f.context, async (tx) => {
+      assert.equal((await tx.list("text-processing-job")).length, 2);
+      assert.equal(
+        (await tx.audits()).filter((e) => e.type === "processing.retry.queued")
+          .length,
+        1,
+      );
+      assert.ok(verifyAudit(await tx.audits()));
+    });
+  },
+);

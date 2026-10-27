@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 46,
+  "testsPassed": 54,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -14,7 +14,7 @@
     "src/index.ts": "4a24126ff5b081658cff0745a6e802a50131db8caf6e7d0a2947853e82316b25",
     "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf",
     "src/translation.ts": "1df01ee05bf34e53d5635f0cb9e95068e41f9639cd89047ca83b644c5491e2cc",
-    "src/text-jobs.ts": "0aaf017e23b2b2ce56397b8359937fa08cdec255945906b1ddfd2f49d2a48b4e"
+    "src/text-jobs.ts": "486728bb26352cab39e7cac30d167ce0a409e702ab3c5ae1e92b04530ef8e550"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",
@@ -31,7 +31,7 @@
     "newIntegrationGroups": 10,
     "database": "Actual pinned SQL migration and restricted PGlite login",
     "clock": "Fresh time after project lock, including simulated lock delay test",
-    "networkSessionAndLiveAcceptance": "not_performed",
+    "networkSessionAndLiveAcceptance": "Specific PostgreSQL17 CI scenarios qualified in PR8; production/live acceptance not performed",
     "dispatcherSourceReceiptServices": "not_integrated"
   },
   "textJobFailure": {
@@ -41,11 +41,21 @@
     "liveAcceptance": "not_performed"
   },
   "postgresContention": {
-    "groups": 5,
+    "groups": 6,
     "localExecution": "not_performed_no_PostgreSQL_or_Docker",
     "initialFourGroupCiRun": 40476391577,
     "initialSource": "32593e8e8356ef6424be21851f587332b7362fe8",
     "finalHeadCi": "required_before_merge",
-    "productionDeployment": "not_qualified"
+    "productionDeployment": "not_qualified",
+    "acceptedFiveGroupCiRun": 40476863067
+  },
+  "textJobRetry": {
+    "newLocalGroups": 8,
+    "database": "Actual pinned migrations and restricted PGlite login",
+    "newPostgresGroups": 1,
+    "localPostgresExecution": "not_performed_no_PostgreSQL_or_Docker",
+    "finalHeadCi": "required_before_merge",
+    "productionProofServices": "not_qualified",
+    "runtimeDispatch": "not_implemented"
   }
 }
