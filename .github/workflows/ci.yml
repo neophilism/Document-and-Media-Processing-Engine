@@ -38,3 +38,28 @@ jobs:
       - run: npm ci
       - run: docker build --iidfile /tmp/dmp-ocr-image -f containers/pdf-ocr/Dockerfile .
       - run: DMP_OCR_TEST_IMAGE="$(cat /tmp/dmp-ocr-image)" npm run test:docker:ocr
+  postgres-contention:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-admin-only
+          POSTGRES_DB: processing_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d processing_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:postgres
+        env:
+          DMP_TEST_DISPOSABLE_POSTGRES: '1'
+          DMP_TEST_ADMIN_URL: postgresql://postgres:fixture-admin-only@127.0.0.1:5432/processing_ci

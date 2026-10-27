@@ -43,7 +43,8 @@
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
     "test:docker": "node --test integration/docker-pdf.test.ts",
-    "test:docker:ocr": "node --test integration/docker-ocr.test.ts"
+    "test:docker:ocr": "node --test integration/docker-ocr.test.ts",
+    "test:postgres": "node --test integration/postgres-text-jobs.test.ts"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.12",
