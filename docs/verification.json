@@ -56,6 +56,9 @@
     "localPostgresExecution": "not_performed_no_PostgreSQL_or_Docker",
     "finalHeadCi": "required_before_merge",
     "productionProofServices": "not_qualified",
-    "runtimeDispatch": "not_implemented"
+    "runtimeDispatch": "not_implemented",
+    "initialEightLocalSixNetworkCiRun": 40484699405,
+    "initialSource": "ca3dda05c54bb1f6d774aae38ae4e2356a4a1dc5",
+    "installedPackage": "Public export executed retry lifecycle/replay/audit over actual restricted migrated PGlite"
   }
 }
