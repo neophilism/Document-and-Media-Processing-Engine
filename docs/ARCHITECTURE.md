@@ -34,4 +34,4 @@ Explicit manager-only retry lineage can queue one deterministic successor of an 
 
 ## Private output receipts
 
-[Private text outputs](TEXT_OUTPUTS.md) persist encrypted text in a Processing-owned object root and exact immutable metadata/receipt records in its own operational database. Durable pre-write intents retain incomplete blob/SQL work. Verification independently rereads the source and persisted output; SQL/blob atomicity, pending-intent finalization, no-output/liveness service and deployment acceptance remain separate.
+[Private text outputs](TEXT_OUTPUTS.md) persist encrypted text in a Processing-owned object root and exact immutable metadata/receipt records in its own operational database. Durable pre-write intents retain incomplete blob/SQL work. Verification independently rereads the source and persisted output; Explicit manager finalization independently verifies already-existing pending bytes/source and publishes one exact receipt without rerunning a processor or rewriting objects. SQL/blob atomicity, cleanup, no-output/liveness services and deployment acceptance remain separate.

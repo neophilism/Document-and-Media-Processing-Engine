@@ -9,6 +9,10 @@ import { EvidenceService } from "@accountability/evidence-service-sdk/service";
 import type { Identity } from "@accountability/evidence-service-sdk/service";
 import type { Database } from "@accountability/evidence-service-sdk/database";
 import { PrivateObjectStore } from "@accountability/evidence-service-sdk/objects";
+import { PrivateTextOutputs } from "../src/text-outputs.ts";
+import { TextProcessingJobs } from "../src/text-jobs.ts";
+import { scoped, verifyAudit } from "@accountability/evidence/database";
+import { PrivateObjectStore as ProcessingObjects } from "@accountability/evidence/objects";
 import { createEvidenceTextSource } from "../src/evidence-source.ts";
 import { runLeasedTextJob } from "../src/text-worker.ts";
 import { hashBytes } from "../src/contracts.ts";
@@ -350,4 +354,116 @@ test("captured source context is stable while current processing authority is re
   assert.deepEqual(value.source, f.acquired.ref);
   assert.deepEqual(value.bytes, bytes);
   assert.equal(value.processingAllowed, true);
+});
+
+test("authenticated Evidence to private Processing output chain reconciles pending bytes with separate databases and object roots", async (t) => {
+  const f = await fixture(t);
+  await f.scan();
+  const root = await mkdtemp(join(tmpdir(), "processing-chain-output-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const objects = new ProcessingObjects(
+    root,
+    randomBytes(32),
+    "processing-chain-key",
+  );
+  const read = f.source();
+  const options = {
+    ...f.policy,
+    verificationTimeoutMs: 5000,
+    authorize: async () => true,
+    readSource: read,
+  };
+  const outputs = new PrivateTextOutputs(
+    f.db,
+    objects,
+    options,
+    () => f.time.now,
+  );
+  const jobs = new TextProcessingJobs(
+    f.db,
+    { ...f.policy, verificationTimeoutMs: 5000 },
+    {
+      authorizeStart: async () => true,
+      verifyOutcome: outputs.verifyOutcome.bind(outputs),
+    },
+    () => f.time.now,
+  );
+  let injected = false;
+  const db: typeof f.db = {
+    transaction: (fn) =>
+      f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              values?.includes("processing.output.stored")
+            ) {
+              injected = true;
+              throw Error("test-only output rollback");
+            }
+            return result;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  const interrupted = new PrivateTextOutputs(
+    db,
+    objects,
+    options,
+    () => f.time.now,
+  );
+  const result = await runLeasedTextJob(
+    jobs,
+    w,
+    "actual",
+    2,
+    {
+      readSource: read,
+      storePrivateText: interrupted.storePrivateText.bind(interrupted),
+    },
+    () => f.time.now,
+    { timeoutMs: 10000 },
+  );
+  assert.equal(injected, true);
+  assert.equal(result.status, "reconciliation-required");
+  assert.equal((await jobs.read(w, "actual")).job.status, "consumed");
+  objects.put = async () => {
+    throw Error("reconciliation must not rewrite output bytes");
+  };
+  f.time.now = "2026-01-01T00:02:00Z";
+  const out = await outputs.finalizePending(
+    c,
+    "actual",
+    3,
+    new AbortController().signal,
+  );
+  const completed = await jobs.complete(c, "actual", 3, out, "chain-finalize");
+  assert.equal(completed.job.status, "completed");
+  assert.equal(
+    await outputs.verifyOutcome(
+      completed.job,
+      out,
+      c,
+      new AbortController().signal,
+    ),
+    true,
+  );
+  await scoped(f.db, c, async (tx) => {
+    assert.equal((await tx.list("processing-output-receipt")).length, 1);
+    assert.deepEqual(await tx.list("evidence"), []);
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+  // Current facade identity remains authoritative for historical output verification.
+  f.identities[0]!.disabled = true;
+  assert.equal(
+    await outputs.verifyOutcome(
+      completed.job,
+      out,
+      c,
+      new AbortController().signal,
+    ),
+    false,
+  );
 });

@@ -1,6 +1,13 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { PrivateObjectStore } from "@accountability/evidence/objects";
+import { PrivateTextOutputs } from "../src/text-outputs.ts";
+import { extractUtf8 } from "../src/index.ts";
+import { hashBytes } from "../src/contracts.ts";
 import {
   postgresDatabase,
   scoped,
@@ -445,5 +452,158 @@ test(
       );
       assert.ok(verifyAudit(await tx.audits()));
     });
+  },
+);
+
+test(
+  "independent PostgreSQL sessions finalize one pending encrypted output after lease expiry without duplicate publication",
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t, "network-output-finalize");
+    const bytes = Buffer.from("hello");
+    const source = {
+      source: { ...original.source, projectId: f.context.projectId },
+      sha256: hashBytes(bytes),
+      bytes,
+      scanStatus: "clean" as const,
+      processingAllowed: true,
+    };
+    await f.jobsA.submit(
+      f.context,
+      {
+        ...original,
+        id: "actual",
+        source: source.source,
+        sourceSha256: source.sha256,
+      },
+      "actual",
+    );
+    await f.jobsA.lease(f.w, "actual", 1);
+    const consumed = await f.jobsA.consume(f.w, "actual", 2);
+    const root = await mkdtemp(join(tmpdir(), "network-processing-output-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const objects = new PrivateObjectStore(
+      root,
+      randomBytes(32),
+      "network-fixture-key",
+    );
+    const policy = {
+      ...f.policy,
+      managerIds: ["owner", "second"],
+      readSource: async () => source,
+      authorize: async () => true,
+    };
+    let injected = false;
+    const uncertainDb: Database = {
+      transaction: (fn) =>
+        f.a.transaction((q) =>
+          fn({
+            query: async <T>(sql: string, values?: unknown[]) => {
+              const result = await q.query<T>(sql, values);
+              if (
+                sql.includes("INSERT INTO public.evidence_outbox") &&
+                values?.includes("processing.output.stored")
+              ) {
+                injected = true;
+                throw Error("fixture rollback retains pending private output");
+              }
+              return result;
+            },
+          }),
+        ),
+      close: async () => {},
+    };
+    await assert.rejects(
+      new PrivateTextOutputs(
+        uncertainDb,
+        objects,
+        policy,
+        () => f.clock.now,
+      ).storePrivateText(
+        consumed,
+        extractUtf8(f.context, source),
+        f.w,
+        new AbortController().signal,
+      ),
+    );
+    assert.equal(injected, true);
+    objects.put = async () => {
+      throw Error("finalization cannot rewrite encrypted bytes");
+    };
+    f.clock.now = "2026-01-01T00:02:00Z";
+    const arrive = barrier();
+    let admissions = 0;
+    const options = {
+      ...policy,
+      authorize: async (_job: unknown, ctx: typeof f.context) => {
+        assert.equal(ctx.now, f.clock.now);
+        if (++admissions <= 2) return arrive();
+        return true;
+      },
+    };
+    const a = new PrivateTextOutputs(f.a, objects, options, () => f.clock.now),
+      b = new PrivateTextOutputs(f.b, objects, options, () => f.clock.now);
+    const outcomes = await Promise.all([
+      a.finalizePending(f.context, "actual", 3, new AbortController().signal),
+      b.finalizePending(
+        { ...f.context, actor: { ...f.context.actor, id: "second" } },
+        "actual",
+        3,
+        new AbortController().signal,
+      ),
+    ]);
+    assert.deepEqual(outcomes[0], outcomes[1]);
+    const outcome = outcomes[0]!;
+    assert.equal(
+      (await f.jobsA.read(f.context, "actual")).job.status,
+      "consumed",
+    );
+    await scoped(f.b, f.context, async (tx) => {
+      assert.equal((await tx.list("processing-private-text")).length, 1);
+      assert.equal((await tx.list("processing-output-receipt")).length, 1);
+      assert.equal(
+        (await tx.get("processing-output-intent", outcome.receipt.id))
+          ?.revision,
+        2,
+      );
+      assert.ok(verifyAudit(await tx.audits()));
+    });
+    const outbox = await admin.transaction((q) =>
+      q.query<{ count: number }>(
+        "SELECT count(*)::int AS count FROM public.evidence_outbox WHERE tenant_id=$1 AND project_id=$2 AND topic=$3",
+        [f.context.tenantId, f.context.projectId, "processing.output.stored"],
+      ),
+    );
+    assert.equal(outbox.rows[0]!.count, 1);
+    const verifiedJobs = new TextProcessingJobs(
+      f.b,
+      f.policy,
+      {
+        authorizeStart: async () => true,
+        verifyOutcome: b.verifyOutcome.bind(b),
+      },
+      () => f.clock.now,
+    );
+    assert.equal(
+      (
+        await verifiedJobs.complete(
+          f.context,
+          "actual",
+          3,
+          outcome,
+          "network-finalized",
+        )
+      ).job.status,
+      "completed",
+    );
+    assert.deepEqual(
+      await a.finalizePending(
+        f.context,
+        "actual",
+        3,
+        new AbortController().signal,
+      ),
+      outcome,
+    );
   },
 );

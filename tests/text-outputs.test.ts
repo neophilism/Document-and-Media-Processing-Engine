@@ -455,3 +455,494 @@ test("captured derivative is stable across policy waits and current source reval
     ),
   );
 });
+
+async function pendingOutput(t: test.TestContext) {
+  const f = await fixture(t);
+  const consumed = await f.jobs.consume(w, "actual", 2);
+  const db: typeof f.db = {
+    transaction: (fn) =>
+      f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              values?.includes("processing.output.stored")
+            )
+              throw Error("test-only rollback after output outbox");
+            return result;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  await assert.rejects(
+    new PrivateTextOutputs(
+      db,
+      f.objects,
+      f.options,
+      () => f.time.now,
+    ).storePrivateText(consumed, f.derivative, w, signal()),
+  );
+  return { ...f, consumed };
+}
+
+test("manager finalizes existing pending bytes after lease expiry without rewriting bytes or repeating processing", async (t) => {
+  const f = await pendingOutput(t);
+  const key = `${digest({ tenantId: c.tenantId, projectId: c.projectId })}/${hashBytes(bytes)}`;
+  const before = await readFile(join(f.root, key));
+  f.objects.put = async () => {
+    throw Error("finalization must not write objects");
+  };
+  f.time.now = "2026-01-01T00:02:00Z";
+  const out = await f.outputs.finalizePending(c, "actual", 3, signal());
+  assert.deepEqual(await readFile(join(f.root, key)), before);
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
+  assert.equal(
+    await f.outputs.verifyOutcome(f.consumed.job, out, c, signal()),
+    true,
+  );
+  const done = await f.jobs.complete(
+    c,
+    "actual",
+    3,
+    out,
+    "finalized-completion",
+  );
+  assert.equal(done.job.status, "completed");
+  assert.deepEqual(
+    await f.outputs.finalizePending(c, "actual", 3, signal()),
+    out,
+  );
+  await scoped(f.db, c, async (tx) => {
+    assert.equal((await tx.list("processing-private-text")).length, 1);
+    assert.equal((await tx.list("processing-output-receipt")).length, 1);
+    const intent = await tx.get<{ status: string }>(
+      "processing-output-intent",
+      out.receipt.id,
+    );
+    assert.equal(intent?.revision, 2);
+    assert.equal(intent?.value.status, "stored");
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+});
+
+test("pending finalization requires current listed manager, exact scope/purpose and consumed edition", async (t) => {
+  const f = await pendingOutput(t);
+  for (const ctx of [
+    w,
+    { ...c, actor: { ...c.actor, id: "unlisted" } },
+    { ...c, actor: { ...c.actor, roles: [] } },
+    { ...c, projectId: "foreign" },
+    { ...c, purpose: "other" },
+  ]) {
+    await assert.rejects(
+      f.outputs.finalizePending(ctx, "actual", 3, signal()),
+      { code: "output_unavailable" },
+    );
+  }
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 2, signal()));
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 4, signal()));
+  f.deny();
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 3, signal()));
+  await scoped(f.db, c, async (tx) => {
+    assert.deepEqual(await tx.list("processing-output-receipt"), []);
+    assert.equal(
+      (
+        await tx.get(
+          "processing-output-intent",
+          digest({ jobId: "actual", consumedRevision: 3 }),
+        )
+      )?.revision,
+      1,
+    );
+  });
+});
+
+test("finalization denies absent intent, missing/corrupted ciphertext and unavailable key without creating or deleting bytes", async (t) => {
+  const f = await pendingOutput(t);
+  const key = `${digest({ tenantId: c.tenantId, projectId: c.projectId })}/${hashBytes(bytes)}`;
+  const path = join(f.root, key),
+    original = await readFile(path);
+  await f.jobs.submit(
+    c,
+    {
+      ...input,
+      id: "no-intent",
+      sourceSha256: hashBytes(bytes),
+      sourceBytes: bytes.length,
+    },
+    "no-intent",
+  );
+  await f.jobs.lease(w, "no-intent", 1);
+  await f.jobs.consume(w, "no-intent", 2);
+  await assert.rejects(f.outputs.finalizePending(c, "no-intent", 3, signal()));
+  await rm(path);
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 3, signal()));
+  await assert.rejects(readFile(path));
+  await writeFile(path, "corrupt private object");
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 3, signal()));
+  assert.equal(await readFile(path, "utf8"), "corrupt private object");
+  await writeFile(path, original);
+  const rotated = new PrivateTextOutputs(
+    f.db,
+    new PrivateObjectStore(f.root, randomBytes(32), "different-key"),
+    f.options,
+    () => f.time.now,
+  );
+  await assert.rejects(rotated.finalizePending(c, "actual", 3, signal()));
+  assert.deepEqual(await readFile(path), original);
+  await scoped(f.db, c, async (tx) =>
+    assert.deepEqual(await tx.list("processing-output-receipt"), []),
+  );
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
+});
+
+test("current source denial, late verification, cancellation and regressed clock leave pending work unresolved", async (t) => {
+  const f = await pendingOutput(t);
+  const denied = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      readSource: async () => ({
+        ...(await f.source()),
+        processingAllowed: false,
+      }),
+    },
+    () => f.time.now,
+  );
+  await assert.rejects(denied.finalizePending(c, "actual", 3, signal()));
+  let finish!: (input: Awaited<ReturnType<typeof f.source>>) => void;
+  let seen: AbortSignal | undefined;
+  const hung = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      verificationTimeoutMs: 10,
+      readSource: async (_j, ctx, s) => {
+        assert.equal(ctx.now, f.time.now);
+        seen = s;
+        return new Promise((r) => {
+          finish = r;
+        });
+      },
+    },
+    () => f.time.now,
+  );
+  f.time.now = "2026-01-01T00:02:00Z";
+  await assert.rejects(hung.finalizePending(c, "actual", 3, signal()));
+  assert.equal(seen?.aborted, true);
+  finish(await f.source());
+  await new Promise((r) => setImmediate(r));
+  const stopped = new AbortController();
+  stopped.abort();
+  await assert.rejects(
+    f.outputs.finalizePending(c, "actual", 3, stopped.signal),
+  );
+  const regressed = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    f.options,
+    () => "2025-12-31T23:59:59Z",
+  );
+  await assert.rejects(regressed.finalizePending(c, "actual", 3, signal()));
+  await scoped(f.db, c, async (tx) => {
+    assert.deepEqual(await tx.list("processing-output-receipt"), []);
+    assert.equal(
+      (
+        await tx.get(
+          "processing-output-intent",
+          digest({ jobId: "actual", consumedRevision: 3 }),
+        )
+      )?.revision,
+      1,
+    );
+  });
+});
+
+test("lost finalization acknowledgement replays the committed outcome after fresh current authority", async (t) => {
+  const f = await pendingOutput(t);
+  let lost = false;
+  const db: typeof f.db = {
+    transaction: async (fn) => {
+      let publishing = false;
+      const result = await f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              values?.includes("processing.output.stored")
+            )
+              publishing = true;
+            return result;
+          },
+        }),
+      );
+      if (publishing && !lost) {
+        lost = true;
+        throw Error("lost finalization ack: secret fixture diagnostic");
+      }
+      return result;
+    },
+    close: async () => {},
+  };
+  const uncertain = new PrivateTextOutputs(
+    db,
+    f.objects,
+    f.options,
+    () => f.time.now,
+  );
+  await assert.rejects(
+    uncertain.finalizePending(c, "actual", 3, signal()),
+    (e) => {
+      assert.equal(String(e).includes("secret fixture"), false);
+      return true;
+    },
+  );
+  assert.equal(lost, true);
+  const out = await f.outputs.finalizePending(c, "actual", 3, signal());
+  assert.deepEqual(
+    await uncertain.finalizePending(c, "actual", 3, signal()),
+    out,
+  );
+  f.deny();
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 3, signal()));
+  await scoped(f.db, c, async (tx) => {
+    assert.equal((await tx.list("processing-output-receipt")).length, 1);
+    assert.equal(
+      (await tx.get("processing-output-intent", out.receipt.id))?.revision,
+      2,
+    );
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+});
+
+test("finalization rollback after outbox keeps only the pending intent and existing encrypted bytes", async (t) => {
+  const f = await pendingOutput(t);
+  let injected = false;
+  const db: typeof f.db = {
+    transaction: (fn) =>
+      f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              values?.includes("processing.output.stored")
+            ) {
+              injected = true;
+              throw Error("rollback finalization after outbox");
+            }
+            return result;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  await assert.rejects(
+    new PrivateTextOutputs(
+      db,
+      f.objects,
+      f.options,
+      () => f.time.now,
+    ).finalizePending(c, "actual", 3, signal()),
+  );
+  assert.equal(injected, true);
+  await assert.rejects(f.outputs.recoverOutcome(c, "actual", 3, signal()));
+  await scoped(f.db, c, async (tx) => {
+    assert.deepEqual(await tx.list("processing-private-text"), []);
+    assert.deepEqual(await tx.list("processing-output-receipt"), []);
+    assert.equal(
+      (
+        await tx.get(
+          "processing-output-intent",
+          digest({ jobId: "actual", consumedRevision: 3 }),
+        )
+      )?.revision,
+      1,
+    );
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+  // The same existing bytes can still be finalized after the transaction failure.
+  assert.ok(await f.outputs.finalizePending(c, "actual", 3, signal()));
+});
+
+test("competing managers and an in-flight normal writer converge on one exact publication", async (t) => {
+  const f = await pendingOutput(t);
+  let count = 0,
+    release!: () => void;
+  const all = new Promise<void>((r) => {
+    release = r;
+  });
+  const policy = {
+    ...f.options,
+    managerIds: ["owner", "second"],
+    authorize: async () => {
+      if (++count === 3) release();
+      if (count <= 3) await all;
+      return true;
+    },
+  };
+  const outputs = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    policy,
+    () => f.time.now,
+  );
+  const values = await Promise.all([
+    outputs.finalizePending(c, "actual", 3, signal()),
+    outputs.finalizePending(
+      { ...c, actor: { ...c.actor, id: "second" } },
+      "actual",
+      3,
+      signal(),
+    ),
+    outputs.storePrivateText(f.consumed, f.derivative, w, signal()),
+  ]);
+  assert.deepEqual(values[0], values[1]);
+  assert.deepEqual(values[0], values[2]);
+  await scoped(f.db, c, async (tx) => {
+    assert.equal((await tx.list("processing-private-text")).length, 1);
+    assert.equal((await tx.list("processing-output-receipt")).length, 1);
+    assert.equal(
+      (await tx.get("processing-output-intent", values[0]!.receipt.id))
+        ?.revision,
+      2,
+    );
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+});
+
+test("completion during finalization verification fences stale publication and permits only fresh verified replay", async (t) => {
+  const f = await pendingOutput(t);
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>((r) => {
+      entered = r;
+    }),
+    wait = new Promise<void>((r) => {
+      release = r;
+    });
+  const waiting = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      readSource: async () => {
+        entered();
+        await wait;
+        return f.source();
+      },
+    },
+    () => f.time.now,
+  );
+  const ctx = structuredClone(c);
+  const operation = waiting.finalizePending(ctx, "actual", 3, signal());
+  await ready;
+  // Captured manager/scope/purpose must not drift while awaiting source verification.
+  (ctx as { projectId: string }).projectId = "mutated";
+  const out = await f.outputs.storePrivateText(
+    f.consumed,
+    f.derivative,
+    w,
+    signal(),
+  );
+  await f.jobs.complete(c, "actual", 3, out, "competing-completion");
+  release();
+  await assert.rejects(operation, { code: "output_unavailable" });
+  assert.deepEqual(
+    await waiting.finalizePending(c, "actual", 3, signal()),
+    out,
+  );
+  await scoped(f.db, c, async (tx) =>
+    assert.equal(
+      (await tx.get("processing-output-intent", out.receipt.id))?.revision,
+      2,
+    ),
+  );
+});
+
+test("cancellation while acquiring the publication lock fences finalization without clearing pending state", async (t) => {
+  const f = await pendingOutput(t),
+    controller = new AbortController();
+  let observed = false;
+  const db: typeof f.db = {
+    transaction: (fn) =>
+      f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (sql.includes("FOR UPDATE")) {
+              observed = true;
+              controller.abort();
+            }
+            return result;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  const outputs = new PrivateTextOutputs(
+    db,
+    f.objects,
+    f.options,
+    () => f.time.now,
+  );
+  await assert.rejects(
+    outputs.finalizePending(c, "actual", 3, controller.signal),
+  );
+  assert.equal(observed, true);
+  await scoped(f.db, c, async (tx) => {
+    assert.deepEqual(await tx.list("processing-output-receipt"), []);
+    assert.equal(
+      (
+        await tx.get(
+          "processing-output-intent",
+          digest({ jobId: "actual", consumedRevision: 3 }),
+        )
+      )?.revision,
+      1,
+    );
+  });
+});
+
+test("finalization captures authenticated manager context before asynchronous current-policy verification", async (t) => {
+  const f = await pendingOutput(t);
+  let entered!: () => void,
+    release!: () => void,
+    calls = 0;
+  const ready = new Promise<void>((r) => {
+      entered = r;
+    }),
+    wait = new Promise<void>((r) => {
+      release = r;
+    });
+  const outputs = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      authorize: async (_job, ctx) => {
+        assert.equal(ctx.projectId, c.projectId);
+        assert.equal(ctx.actor.id, c.actor.id);
+        if (++calls === 1) {
+          entered();
+          await wait;
+        }
+        return true;
+      },
+    },
+    () => f.time.now,
+  );
+  const ctx = structuredClone(c);
+  const operation = outputs.finalizePending(ctx, "actual", 3, signal());
+  await ready;
+  (ctx as { projectId: string }).projectId = "mutated";
+  (ctx.actor as { id: string }).id = "mutated";
+  release();
+  const out = await operation;
+  assert.equal(out.derivative.projectId, c.projectId);
+  assert.deepEqual(await outputs.recoverOutcome(c, "actual", 3, signal()), out);
+});

@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 76,
+  "testsPassed": 87,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -17,7 +17,7 @@
     "src/text-jobs.ts": "486728bb26352cab39e7cac30d167ce0a409e702ab3c5ae1e92b04530ef8e550",
     "src/text-worker.ts": "745162ba19064535661a9cf200503b540c20c43ccd67a263f5479cf227b9f5df",
     "src/evidence-source.ts": "487659cff006bfc5276a672f801fc42015b8401fa0b586b2bc824a9b390b45be",
-    "src/text-outputs.ts": "038f994badd25177e26e85d1ad832d161c83e8cbbc5251f91de581c25d9b148f"
+    "src/text-outputs.ts": "a0ec4f67cc8d02472c53ff26029bbb309e48822db1fff5709b2c5786b0845ce3"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",
@@ -44,7 +44,7 @@
     "liveAcceptance": "not_performed"
   },
   "postgresContention": {
-    "groups": 6,
+    "groups": 7,
     "localExecution": "not_performed_no_PostgreSQL_or_Docker",
     "initialFourGroupCiRun": 40476391577,
     "initialSource": "32593e8e8356ef6424be21851f587332b7362fe8",
@@ -89,7 +89,25 @@
     "source": "Mandatory current source reader; controlled test callback only",
     "independentOutputValidation": "Re-extract exact source and decrypt/re-hash committed output",
     "crashNetworkKeysAndDeploymentQualification": "not_performed",
-    "pendingIntentRecoveryOrCleanup": "not_implemented",
+    "pendingIntentRecoveryOrCleanup": "Explicit manager-only finalization implemented in PR13; cleanup unimplemented",
     "finalHeadCi": "required_before_merge"
+  },
+  "pendingOutputFinalization": {
+    "stage": "local",
+    "newLocalGroups": 10,
+    "newCompleteChainGroups": 1,
+    "targetedOutputGroups": 18,
+    "fullLocalSuitePassed": 87,
+    "installedPackage": "All 25 source/output groups executed successfully through installed compiled public exports",
+    "database": "Actual restricted migrated separate Processing and Evidence PGlite databases",
+    "objects": "Separate temporary encrypted object roots",
+    "scanner": "Synthetic test-only scanner; not malware qualification",
+    "outputNetworkSessionAndLiveAcceptance": "Specific PostgreSQL17 finalization case passed CI40528178161; broader/deployed/live acceptance not performed",
+    "finalHeadCi": "required_before_merge",
+    "newPostgresGroups": 1,
+    "localPostgres": "not_performed_no_PostgreSQL_or_Docker",
+    "initialSevenGroupSource": "81f538186ca837167c989bd3caa0aed199fbe8d3",
+    "initialSevenGroupCiRun": 40528178161,
+    "initialSevenGroupJob": 122273359499
   }
 }
