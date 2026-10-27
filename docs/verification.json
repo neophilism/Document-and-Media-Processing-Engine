@@ -44,7 +44,7 @@
     "liveAcceptance": "not_performed"
   },
   "postgresContention": {
-    "groups": 6,
+    "groups": 7,
     "localExecution": "not_performed_no_PostgreSQL_or_Docker",
     "initialFourGroupCiRun": 40476391577,
     "initialSource": "32593e8e8356ef6424be21851f587332b7362fe8",
@@ -103,6 +103,8 @@
     "objects": "Separate temporary encrypted object roots",
     "scanner": "Synthetic test-only scanner; not malware qualification",
     "outputNetworkSessionAndLiveAcceptance": "not_performed",
-    "finalHeadCi": "required_before_merge"
+    "finalHeadCi": "required_before_merge",
+    "newPostgresGroups": 1,
+    "localPostgres": "not_performed_no_PostgreSQL_or_Docker"
   }
 }
