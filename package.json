@@ -39,6 +39,10 @@
     "./evidence-source": {
       "types": "./dist/evidence-source.d.ts",
       "default": "./dist/evidence-source.js"
+    },
+    "./text-outputs": {
+      "types": "./dist/text-outputs.d.ts",
+      "default": "./dist/text-outputs.js"
     }
   },
   "engines": {
