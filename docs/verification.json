@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 87,
+  "testsPassed": 94,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -14,7 +14,7 @@
     "src/index.ts": "4a24126ff5b081658cff0745a6e802a50131db8caf6e7d0a2947853e82316b25",
     "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf",
     "src/translation.ts": "1df01ee05bf34e53d5635f0cb9e95068e41f9639cd89047ca83b644c5491e2cc",
-    "src/text-jobs.ts": "486728bb26352cab39e7cac30d167ce0a409e702ab3c5ae1e92b04530ef8e550",
+    "src/text-jobs.ts": "8e5166de11029f30f87a9fe1ebe6522d0bde17dc2429b9c9dd21e9c191b67d28",
     "src/text-worker.ts": "745162ba19064535661a9cf200503b540c20c43ccd67a263f5479cf227b9f5df",
     "src/evidence-source.ts": "487659cff006bfc5276a672f801fc42015b8401fa0b586b2bc824a9b390b45be",
     "src/text-outputs.ts": "a0ec4f67cc8d02472c53ff26029bbb309e48822db1fff5709b2c5786b0845ce3"
@@ -109,5 +109,13 @@
     "initialSevenGroupSource": "81f538186ca837167c989bd3caa0aed199fbe8d3",
     "initialSevenGroupCiRun": 40528178161,
     "initialSevenGroupJob": 122273359499
+  },
+  "verificationDeadline": {
+    "newLocalGroups": 7,
+    "oldSourceReproduction": "Four blocked-result transition groups failed against prior main 366589ca7937857406613e6b680daa16faaee52b",
+    "database": "Actual canonical migration and restricted PGlite login",
+    "installedPackage": "pending",
+    "finalHeadCi": "required_before_merge",
+    "newNetworkSessionOrLiveQualification": "none"
   }
 }
