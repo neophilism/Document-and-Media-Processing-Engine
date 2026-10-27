@@ -23,11 +23,26 @@ export type TextJobOutcome = Readonly<{
   sha256: string;
   receipt: Ref;
 }>;
+export type TextJobFailure = Readonly<{
+  receipt: Ref;
+  reason:
+    | "processor-failed"
+    | "cancelled-before-processing"
+    | "runtime-expired";
+  processorStopped: true;
+  noDerivative: true;
+}>;
 export type TextJob = TextJobInput &
   Readonly<{
     purpose: string;
     profile: "utf8-text@1.0.0";
-    status: "queued" | "leased" | "consumed" | "completed" | "cancelled";
+    status:
+      | "queued"
+      | "leased"
+      | "consumed"
+      | "completed"
+      | "cancelled"
+      | "failed";
     workerId: string | null;
     workerKind: string | null;
     leaseExpiresAt: string | null;
@@ -35,6 +50,7 @@ export type TextJob = TextJobInput &
     submittedAt: string;
     submittedBy: string;
     consumedAt: string | null;
+    failure?: TextJobFailure;
   }>;
 export type TextJobSnapshot = Readonly<{ job: TextJob; revision: number }>;
 export type TextJobPolicy = Scope &
@@ -44,6 +60,13 @@ export type TextJobPolicy = Scope &
     verificationTimeoutMs?: number;
   }>;
 export type TextJobVerification = Readonly<{
+  verifyNoOutput?(
+    job: TextJob,
+    failure: TextJobFailure,
+    consumedRevision: number,
+    context: Context,
+    signal: AbortSignal,
+  ): Promise<boolean>;
   authorizeStart(
     job: TextJob,
     context: Context,
@@ -129,6 +152,9 @@ export class TextProcessingJobs {
     this.#checks = {
       authorizeStart: verification.authorizeStart.bind(verification),
       verifyOutcome: verification.verifyOutcome.bind(verification),
+      ...(verification.verifyNoOutput
+        ? { verifyNoOutput: verification.verifyNoOutput.bind(verification) }
+        : {}),
     };
     this.#timeout = policy.verificationTimeoutMs ?? 5000;
     invariant(
@@ -435,6 +461,115 @@ export class TextProcessingJobs {
             "processing.completed",
             json({ jobId: id, revision: saved.revision, outcome }),
             digest({ id, event: "completed" }),
+          );
+          return json({ job, revision: saved.revision });
+        },
+      ),
+    ) as Promise<unknown> as Promise<TextJobSnapshot>;
+  }
+  /** A failure is terminal and never itself issues another execution permit. */
+  async settleNoOutput(
+    context: Context,
+    id: string,
+    consumedRevision: number,
+    supplied: TextJobFailure,
+    commandId: string,
+  ): Promise<TextJobSnapshot> {
+    const c = structuredClone(context),
+      failure = structuredClone(supplied);
+    requireScope(c, this.#policy);
+    if (c.actor.kind === "human") this.#manager(c);
+    else this.#worker(c);
+    invariant(
+      Number.isSafeInteger(consumedRevision) && consumedRevision > 0,
+      "invalid_revision",
+      "Exact consumed revision required",
+    );
+    invariant(
+      Object.keys(failure).length === 4 &&
+        ["receipt", "reason", "processorStopped", "noDerivative"].every((k) =>
+          Object.hasOwn(failure, k),
+        ) &&
+        failure.processorStopped === true &&
+        failure.noDerivative === true &&
+        [
+          "processor-failed",
+          "cancelled-before-processing",
+          "runtime-expired",
+        ].includes(failure.reason),
+      "invalid_failure",
+      "Explicit bounded stopped/no-output evidence required",
+    );
+    validateRef(failure.receipt);
+    requireScope(c, failure.receipt);
+    const check = this.#checks.verifyNoOutput;
+    invariant(
+      check,
+      "verification_unavailable",
+      "Trusted no-output verification is not configured",
+    );
+    const before = await this.read(c, id);
+    if (c.actor.kind !== "human") this.#owned(c, before.job);
+    invariant(
+      before.job.status === "consumed" || before.job.status === "failed",
+      "job_unavailable",
+      "Consumed work or exact failed replay required",
+    );
+    await verify(this.#timeout, (signal) =>
+      check(
+        structuredClone(before.job),
+        structuredClone(failure),
+        consumedRevision,
+        structuredClone(c),
+        signal,
+      ),
+    );
+    return scoped(this.#db, c, (tx) =>
+      tx.idempotent(
+        commandId,
+        json({
+          operation: "settle-text-no-output",
+          id,
+          consumedRevision,
+          failure,
+          purpose: c.purpose,
+          actorKind: c.actor.kind,
+        }),
+        async () => {
+          const row = await tx.get<TextJob>("text-processing-job", key(id));
+          invariant(
+            row &&
+              row.revision === consumedRevision &&
+              row.value.status === "consumed",
+            "revision_conflict",
+            "Consumed job changed while verification was pending",
+          );
+          if (c.actor.kind !== "human") this.#owned(c, row.value);
+          const job: TextJob = { ...row.value, status: "failed", failure };
+          const saved = await tx.put(
+            "text-processing-job",
+            key(id),
+            consumedRevision,
+            job,
+          );
+          await tx.audit(
+            "processing.no-output.verified",
+            json({
+              jobId: id,
+              consumedRevision,
+              revision: saved.revision,
+              failure,
+            }),
+          );
+          await tx.enqueue(
+            "processing.failed",
+            json({
+              jobId: id,
+              consumedRevision,
+              revision: saved.revision,
+              failure,
+            }),
+            digest({ id, event: "failed" }),
           );
           return json({ job, revision: saved.revision });
         },
