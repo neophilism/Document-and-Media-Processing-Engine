@@ -98,13 +98,16 @@
     "newCompleteChainGroups": 1,
     "targetedOutputGroups": 18,
     "fullLocalSuitePassed": 87,
-    "installedPackage": "pending",
+    "installedPackage": "All 25 source/output groups executed successfully through installed compiled public exports",
     "database": "Actual restricted migrated separate Processing and Evidence PGlite databases",
     "objects": "Separate temporary encrypted object roots",
     "scanner": "Synthetic test-only scanner; not malware qualification",
-    "outputNetworkSessionAndLiveAcceptance": "not_performed",
+    "outputNetworkSessionAndLiveAcceptance": "Specific PostgreSQL17 finalization case passed CI40528178161; broader/deployed/live acceptance not performed",
     "finalHeadCi": "required_before_merge",
     "newPostgresGroups": 1,
-    "localPostgres": "not_performed_no_PostgreSQL_or_Docker"
+    "localPostgres": "not_performed_no_PostgreSQL_or_Docker",
+    "initialSevenGroupSource": "81f538186ca837167c989bd3caa0aed199fbe8d3",
+    "initialSevenGroupCiRun": 40528178161,
+    "initialSevenGroupJob": 122273359499
   }
 }
