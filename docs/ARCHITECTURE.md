@@ -43,3 +43,7 @@ All text-ledger verification callbacks enforce monotonic admission/result deadli
 [Text-output reconciliation](TEXT_RECONCILIATION.md) connects explicit manager-selected committed-output recovery or existing-byte finalization to independently verified job completion. Exact execution bindings and fresh current proof gate acknowledgements, while errors preserve uncertainty without automatic execution or retry. Authentication/HTTP hosting, safe cleanup, stopped/liveness services and deployment acceptance remain separate.
 
 No-output settlement/retry now check exact known Processing output intent/artifact/receipt presence under the shared project lock before cached lookup. Intent admission and settlement serialize conservatively; any known record denies. Independent quiescence/no-output proof remains mandatory, and absence never becomes proof. No cleanup or deployed liveness service is introduced.
+
+## Private reconciliation HTTP admission
+
+[Reconciliation HTTP](RECONCILIATION_HTTP.md) adds an opt-in native Fetch adapter with only session and explicit existing-output reconciliation. Bounded body capture precedes fresh trusted host human-manager authentication, then fixed origin/scope/purpose/list/CSRF checks gate the accepted coordinator. Begun SQL/FS remains awaited and uncertainty never authorizes execution. Actual login/listening server/TLS/proxy/UI and deployed policy/key/source/storage acceptance remain separate.
