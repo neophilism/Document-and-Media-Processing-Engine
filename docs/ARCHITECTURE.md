@@ -37,3 +37,7 @@ Explicit manager-only retry lineage can queue one deterministic successor of an 
 [Private text outputs](TEXT_OUTPUTS.md) persist encrypted text in a Processing-owned object root and exact immutable metadata/receipt records in its own operational database. Durable pre-write intents retain incomplete blob/SQL work. Verification independently rereads the source and persisted output; Explicit manager finalization independently verifies already-existing pending bytes/source and publishes one exact receipt without rerunning a processor or rewriting objects. SQL/blob atomicity, cleanup, no-output/liveness services and deployment acceptance remain separate.
 
 All text-ledger verification callbacks enforce monotonic admission/result deadlines and close their signals on every exit. Cached responses still require timely current verification. This fences late callback results before ledger transitions; it does not preempt JavaScript or atomically fence remote policy changes. See TEXT_JOBS.md.
+
+## Controlled host reconciliation
+
+[Text-output reconciliation](TEXT_RECONCILIATION.md) connects explicit manager-selected committed-output recovery or existing-byte finalization to independently verified job completion. Exact execution bindings and fresh current proof gate acknowledgements, while errors preserve uncertainty without automatic execution or retry. Authentication/HTTP hosting, safe cleanup, stopped/liveness services and deployment acceptance remain separate.

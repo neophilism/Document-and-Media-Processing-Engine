@@ -27,7 +27,7 @@ export type TextReconciliationResult =
       phase: "inspection" | "output" | "completion";
     };
 
-/** Explicit trusted-host manager operation. Never consumes, executes, writes bytes or retries a job. */
+/** Explicit trusted-host manager operation. Never consumes, dispatches processing, writes bytes or retries a job. */
 export async function reconcileTextOutput(
   jobs: TextProcessingJobs,
   outputs: PrivateTextOutputs,
