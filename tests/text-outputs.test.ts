@@ -455,3 +455,106 @@ test("captured derivative is stable across policy waits and current source reval
     ),
   );
 });
+
+async function pendingOutput(t: test.TestContext) {
+  const f = await fixture(t);
+  const consumed = await f.jobs.consume(w, "actual", 2);
+  const db: typeof f.db = {
+    transaction: (fn) =>
+      f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, values?: unknown[]) => {
+            const result = await q.query<T>(sql, values);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              values?.includes("processing.output.stored")
+            )
+              throw Error("test-only rollback after output outbox");
+            return result;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  await assert.rejects(
+    new PrivateTextOutputs(
+      db,
+      f.objects,
+      f.options,
+      () => f.time.now,
+    ).storePrivateText(consumed, f.derivative, w, signal()),
+  );
+  return { ...f, consumed };
+}
+
+test("manager finalizes existing pending bytes after lease expiry without rewriting bytes or repeating processing", async (t) => {
+  const f = await pendingOutput(t);
+  const key = `${digest({ tenantId: c.tenantId, projectId: c.projectId })}/${hashBytes(bytes)}`;
+  const before = await readFile(join(f.root, key));
+  f.objects.put = async () => {
+    throw Error("finalization must not write objects");
+  };
+  f.time.now = "2026-01-01T00:02:00Z";
+  const out = await f.outputs.finalizePending(c, "actual", 3, signal());
+  assert.deepEqual(await readFile(join(f.root, key)), before);
+  assert.equal((await f.jobs.read(c, "actual")).job.status, "consumed");
+  assert.equal(
+    await f.outputs.verifyOutcome(f.consumed.job, out, c, signal()),
+    true,
+  );
+  const done = await f.jobs.complete(
+    c,
+    "actual",
+    3,
+    out,
+    "finalized-completion",
+  );
+  assert.equal(done.job.status, "completed");
+  assert.deepEqual(
+    await f.outputs.finalizePending(c, "actual", 3, signal()),
+    out,
+  );
+  await scoped(f.db, c, async (tx) => {
+    assert.equal((await tx.list("processing-private-text")).length, 1);
+    assert.equal((await tx.list("processing-output-receipt")).length, 1);
+    const intent = await tx.get<{ status: string }>(
+      "processing-output-intent",
+      out.receipt.id,
+    );
+    assert.equal(intent?.revision, 2);
+    assert.equal(intent?.value.status, "stored");
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+});
+
+test("pending finalization requires current listed manager, exact scope/purpose and consumed edition", async (t) => {
+  const f = await pendingOutput(t);
+  for (const ctx of [
+    w,
+    { ...c, actor: { ...c.actor, id: "unlisted" } },
+    { ...c, actor: { ...c.actor, roles: [] } },
+    { ...c, projectId: "foreign" },
+    { ...c, purpose: "other" },
+  ]) {
+    await assert.rejects(
+      f.outputs.finalizePending(ctx, "actual", 3, signal()),
+      { code: "output_unavailable" },
+    );
+  }
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 2, signal()));
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 4, signal()));
+  f.deny();
+  await assert.rejects(f.outputs.finalizePending(c, "actual", 3, signal()));
+  await scoped(f.db, c, async (tx) => {
+    assert.deepEqual(await tx.list("processing-output-receipt"), []);
+    assert.equal(
+      (
+        await tx.get(
+          "processing-output-intent",
+          digest({ jobId: "actual", consumedRevision: 3 }),
+        )
+      )?.revision,
+      1,
+    );
+  });
+});

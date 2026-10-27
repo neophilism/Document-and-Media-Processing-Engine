@@ -1,5 +1,5 @@
 import { scoped } from "@accountability/evidence/database";
-import type { Database } from "@accountability/evidence/database";
+import type { Database, UnitOfWork } from "@accountability/evidence/database";
 import { PrivateObjectStore } from "@accountability/evidence/objects";
 import type { ObjectReceipt } from "@accountability/evidence/objects";
 import {
@@ -429,50 +429,136 @@ export class PrivateTextOutputs {
           "Execution changed",
         );
         this.#live(c, current.value, signal);
-        const intent = await tx.get<Intent>(INTENT, id);
-        invariant(
-          intent &&
-            canonical({ ...intent.value, status: "pending" }) ===
-              canonical(pending),
-          "output_conflict",
-          "Output intent changed",
-        );
-        const result = this.#outcome(c, id, d.sha256);
-        if (intent.value.status === "stored") return result;
-        await tx.put<Artifact>(ARTIFACT, id, 0, {
-          visibility: "private",
-          execution,
-          metadata,
-          object,
-        });
-        await tx.put<Receipt>(RECEIPT, id, 0, {
-          visibility: "private",
-          execution,
-          jobId: j.id,
-          consumedRevision: snap.revision,
-          derivative: result.derivative,
-          sha256: d.sha256,
-          metadataDigest: digest(metadata),
-        });
-        await tx.put(INTENT, id, intent.revision, {
-          ...intent.value,
-          status: "stored",
-        });
-        await tx.enqueue(
-          "processing.output.stored",
-          json({
-            jobId: j.id,
-            consumedRevision: snap.revision,
-            outcome: result,
-          }),
-          id,
-        );
-        return result;
+        return this.#publish(tx, c, pending, object);
       });
     } catch {
       throw new DomainError(
         "output_unavailable",
         "Private text output requires reconciliation",
+      );
+    }
+  }
+  async #publish(
+    tx: UnitOfWork,
+    c: Context,
+    pending: Intent,
+    object: ObjectReceipt,
+  ): Promise<TextJobOutcome> {
+    const { jobId, consumedRevision, execution, metadata } = pending;
+    const id = idFor(jobId, consumedRevision);
+    const intent = await tx.get<Intent>(INTENT, id);
+    invariant(
+      intent &&
+        canonical({ ...intent.value, status: "pending" }) ===
+          canonical(pending),
+      "output_conflict",
+      "Output intent changed",
+    );
+    const result = this.#outcome(c, id, metadata.sha256);
+    if (intent.value.status === "stored") return result;
+    await tx.put<Artifact>(ARTIFACT, id, 0, {
+      visibility: "private",
+      execution,
+      metadata,
+      object,
+    });
+    await tx.put<Receipt>(RECEIPT, id, 0, {
+      visibility: "private",
+      execution,
+      jobId,
+      consumedRevision,
+      derivative: result.derivative,
+      sha256: metadata.sha256,
+      metadataDigest: digest(metadata),
+    });
+    await tx.put(INTENT, id, intent.revision, {
+      ...intent.value,
+      status: "stored",
+    });
+    await tx.enqueue(
+      "processing.output.stored",
+      json({
+        jobId,
+        consumedRevision,
+        outcome: result,
+      }),
+      id,
+    );
+    return result;
+  }
+  /** Publish only already-existing verified bytes. This does not execute a processor or clear consumption. */
+  async finalizePending(
+    context: Context,
+    jobId: string,
+    consumedRevision: number,
+    signal: AbortSignal,
+  ): Promise<TextJobOutcome> {
+    const c = structuredClone(context);
+    try {
+      const j = await this.#job(c, jobId, consumedRevision);
+      invariant(
+        c.actor.kind === "human" &&
+          c.actor.roles.includes("owner") &&
+          this.#policy.managerIds.includes(c.actor.id),
+        "output_denied",
+        "Current listed manager required",
+      );
+      await this.#permit(c, j, signal);
+      const id = idFor(jobId, consumedRevision);
+      const row = await scoped(this.#db, c, (tx) => tx.get<Intent>(INTENT, id));
+      invariant(row, "output_denied", "Existing intent required");
+      if (row.value.status === "stored")
+        return await this.recoverOutcome(c, jobId, consumedRevision, signal);
+      const pending = row.value;
+      invariant(
+        row.revision === 1 &&
+          pending.status === "pending" &&
+          pending.jobId === jobId &&
+          pending.consumedRevision === consumedRevision &&
+          pending.execution === digest(binding(j)) &&
+          j.status === "consumed",
+        "output_denied",
+        "Exact pending execution required",
+      );
+      await this.#content(c, jobId, consumedRevision, pending.metadata, signal);
+      // This candidate is not a receipt/proof until get authenticates the existing
+      // envelope with the configured Processing root/key and exact expected bytes.
+      const object: ObjectReceipt = {
+        key: `${digest({ tenantId: c.tenantId, projectId: c.projectId })}/${pending.metadata.sha256}`,
+        plaintextHash: pending.metadata.sha256,
+        size: pending.metadata.byteLength,
+        keyVersion: this.#objects.keyVersion,
+      };
+      const bytes = await this.#objects.get(c, object);
+      invariant(
+        bytes.byteLength === object.size &&
+          hashBytes(bytes) === object.plaintextHash,
+        "output_denied",
+        "Existing private bytes differ",
+      );
+      await this.#permit(c, j, signal);
+      return await scoped(this.#db, c, async (tx) => {
+        // Acquire the same project lock as normal publication/completion before CAS.
+        await tx.audit("processing.output.finalization.checked", { id });
+        const current = await tx.get<TextJob>(
+          "text-processing-job",
+          digest({ id: jobId }),
+        );
+        invariant(
+          current?.revision === consumedRevision &&
+            canonical(current.value) === canonical(j),
+          "output_denied",
+          "Execution changed",
+        );
+        this.#access(c, current.value);
+        this.#fresh(c);
+        invariant(!signal.aborted, "output_denied", "Finalization stopped");
+        return this.#publish(tx, c, pending, object);
+      });
+    } catch {
+      throw new DomainError(
+        "output_unavailable",
+        "Pending private text output requires reconciliation",
       );
     }
   }
