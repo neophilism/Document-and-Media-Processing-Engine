@@ -147,7 +147,7 @@
     "objects": "Real temporary AES-GCM objects",
     "externalProof": "Deliberately permissive synthetic callback; NOT qualified stopped/liveness proof",
     "oldSourceBehavior": "Two presence-denial groups fail on prior main c40b653b56def5b6e9b12d1e4b58aaae74e3c9d1",
-    "installedPackage": "pending",
+    "installedPackage": "All 27 groups (8 new owned-output guards, 7 verifier deadlines, 12 reconciliation) passed through installed compiled public exports",
     "finalHeadCi": "required_before_merge",
     "newNetworkSessionCrashOrLiveQualification": "none",
     "absenceProofOrCleanup": "not_provided"
