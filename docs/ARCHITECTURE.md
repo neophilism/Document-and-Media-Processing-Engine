@@ -14,10 +14,12 @@ The opt-in caption importer is documented in CAPTIONS.md. It preserves supplied 
 
 ## Durable text job orchestration
 
-[Text jobs](TEXT_JOBS.md) add dedicated-database submission, purpose/actor-bound leases, one-shot consumption, fresh clock checks, conservative consumed uncertainty and verified private outcome references. A production dispatch daemon, source/object service integration, OCR/model orchestration, quality/cost qualification and network-session/live acceptance remain pending.
+[Text jobs](TEXT_JOBS.md) add dedicated-database submission, purpose/actor-bound leases, one-shot consumption, fresh clock checks, conservative consumed uncertainty and verified private outcome references. A production dispatch daemon, source/object service integration, OCR/model orchestration, quality/cost qualification and live acceptance remain pending. Specific network-session ledger scenarios are qualified by the disposable CI fixture below.
 
 Text jobs also expose opt-in verified terminal no-output settlement. Processor errors and lease expiry alone remain uncertain. The optional verifier must establish stopped execution and no possible late derivative; settlement atomically records a failure receipt without issuing a retry permit.
 
 ## Network database concurrency verification
 
 [PostgreSQL contention tests](POSTGRES_TESTS.md) qualify specific ledger invariants using separate restricted TCP sessions on a disposable CI PostgreSQL 17 service, including a directly observed lock wait. These tests are distinct from embedded PGlite evidence and do not qualify deployment TLS, failover, production throughput or source/receipt services.
+
+Explicit manager-only retry lineage can queue one deterministic successor of an exact verified failed edition after fresh stopped/no-output verification. Failed parents stay immutable, children preserve exact input/profile/purpose, and each needs fresh lease/start authorization/consumption. Retry never clears unresolved consumption; a sixteen-generation cap bounds each lineage. Real receipt and liveness services remain unqualified.
