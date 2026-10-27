@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 76,
+  "testsPassed": 87,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -89,14 +89,20 @@
     "source": "Mandatory current source reader; controlled test callback only",
     "independentOutputValidation": "Re-extract exact source and decrypt/re-hash committed output",
     "crashNetworkKeysAndDeploymentQualification": "not_performed",
-    "pendingIntentRecoveryOrCleanup": "not_implemented",
+    "pendingIntentRecoveryOrCleanup": "Explicit manager-only finalization implemented in PR13; cleanup unimplemented",
     "finalHeadCi": "required_before_merge"
   },
   "pendingOutputFinalization": {
-    "stage": "WIP",
-    "newLocalGroups": 2,
-    "targetedOutputGroupsPassed": 10,
-    "fullSuiteAndInstalledPackage": "pending",
+    "stage": "local",
+    "newLocalGroups": 10,
+    "newCompleteChainGroups": 1,
+    "targetedOutputGroups": 18,
+    "fullLocalSuitePassed": 87,
+    "installedPackage": "pending",
+    "database": "Actual restricted migrated separate Processing and Evidence PGlite databases",
+    "objects": "Separate temporary encrypted object roots",
+    "scanner": "Synthetic test-only scanner; not malware qualification",
+    "outputNetworkSessionAndLiveAcceptance": "not_performed",
     "finalHeadCi": "required_before_merge"
   }
 }
