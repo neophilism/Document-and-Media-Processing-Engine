@@ -11,3 +11,7 @@ The opt-in caption importer is documented in CAPTIONS.md. It preserves supplied 
 ## Local translation execution
 
 [Local text translation](TRANSLATION.md) adds a fixed-manifest callback adapter with exact source/decoded-text/model/purpose provenance, finite budgets and cancellation. It provides no bundled or isolated model; the host must separately verify those runtime properties. Linguistic accuracy, recognition, worker integration and live acceptance remain pending.
+
+## Durable text job orchestration
+
+[Text jobs](TEXT_JOBS.md) add dedicated-database submission, purpose/actor-bound leases, one-shot consumption, fresh clock checks, conservative consumed uncertainty and verified private outcome references. A production dispatch daemon, source/object service integration, OCR/model orchestration, quality/cost qualification and network-session/live acceptance remain pending.

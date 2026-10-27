@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-27T05:56:11Z",
+  "observedAt": "2026-10-27T07:02:30Z",
   "units": [
     {
       "id": "DMP-001",
@@ -87,7 +87,9 @@
       "title": "Durable workers and quality/cost evaluation",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        6
+      ],
       "dependsOn": [
         "DMP-003",
         "DMP-004"
@@ -98,7 +100,7 @@
         "Durable workers and quality/cost evaluation"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Partial: durable UTF8 text job submission, leases, one-shot consumption, trusted current authorization/exact outcome verification and transactional audit/outbox. Dispatch daemon, object/receipt service integration, OCR/model workers, quality/cost evaluation and live/network-session acceptance remain pending."
     },
     {
       "id": "DMP-006",

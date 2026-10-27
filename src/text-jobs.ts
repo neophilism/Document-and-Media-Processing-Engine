@@ -111,11 +111,19 @@ export class TextProcessingJobs {
   readonly #policy: TextJobPolicy;
   readonly #checks: TextJobVerification;
   readonly #timeout: number;
+  readonly #clock: () => string;
   constructor(
     db: Database,
     policy: TextJobPolicy,
     verification: TextJobVerification,
+    clock: () => string,
   ) {
+    invariant(
+      typeof clock === "function",
+      "invalid_policy",
+      "A trusted live clock is required",
+    );
+    this.#clock = clock;
     this.#db = db;
     this.#policy = structuredClone(policy);
     this.#checks = {
@@ -314,6 +322,12 @@ export class TextProcessingJobs {
       ),
     );
     return scoped(this.#db, c, async (tx) => {
+      // audit() acquires the SDK project lock; sample time only after storage serialization.
+      // The attempt audit rolls back with any rejected consumption.
+      await tx.audit("processing.consumption.checked", {
+        jobId: id,
+        expectedRevision,
+      });
       const row = await tx.get<TextJob>("text-processing-job", key(id));
       invariant(
         row &&
@@ -323,10 +337,17 @@ export class TextProcessingJobs {
         "Job changed during authorization",
       );
       this.#owned(c, row.value);
+      const consumedAt = this.#clock();
+      invariant(
+        validTime(consumedAt) >= validTime(c.now) &&
+          validTime(row.value.leaseExpiresAt!) > validTime(consumedAt),
+        "lease_denied",
+        "Lease expired while authorization or storage was pending",
+      );
       const job: TextJob = {
         ...row.value,
         status: "consumed",
-        consumedAt: c.now,
+        consumedAt,
       };
       const saved = await tx.put(
         "text-processing-job",
