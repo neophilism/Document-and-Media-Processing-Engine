@@ -4,7 +4,7 @@
   "roadmapVersion": 1,
   "planVerified": true,
   "plannedPrCount": 6,
-  "observedAt": "2026-10-26T23:58:21Z",
+  "observedAt": "2026-10-27T01:52:30Z",
   "units": [
     {
       "id": "DMP-001",
@@ -67,7 +67,9 @@
       "title": "Audio/video transcription and translation",
       "origin": "original",
       "prs": [],
-      "contributingPrs": [],
+      "contributingPrs": [
+        4
+      ],
       "dependsOn": [
         "DMP-002"
       ],
@@ -77,7 +79,7 @@
         "Audio/video transcription and translation"
       ],
       "acceptanceCriteria": "Verify required behavior, rejection paths, source-bound test evidence and private defaults; live acceptance remains separate.",
-      "implementationStatus": "planned"
+      "implementationStatus": "Partial: PR4 implements bounded exact-source WebVTT caption import with media edition bindings, original UTF-8 byte anchors and validated timing. This is supplied-transcript review, not speech recognition. Recognition, translation, durable workers and live qualification remain pending."
     },
     {
       "id": "DMP-005",

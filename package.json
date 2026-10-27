@@ -19,6 +19,10 @@
     "./docker-ocr": {
       "types": "./dist/docker-ocr.d.ts",
       "default": "./dist/docker-ocr.js"
+    },
+    "./captions": {
+      "types": "./dist/captions.d.ts",
+      "default": "./dist/captions.js"
     }
   },
   "engines": {
