@@ -343,6 +343,12 @@ export class PrivateTextOutputs {
       validateRef(d.source);
       validTime(d.createdAt);
       invariant(
+        validTime(d.createdAt) >= validTime(j.consumedAt!) &&
+          validTime(d.createdAt) <= validTime(this.#clock()),
+        "invalid_output",
+        "Derivative creation time outside execution window",
+      );
+      invariant(
         canonical(d.source) === canonical(j.source) &&
           d.sourceSha256 === j.sourceSha256 &&
           d.language === j.language &&

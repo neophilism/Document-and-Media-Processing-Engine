@@ -31,3 +31,7 @@ Explicit manager-only retry lineage can queue one deterministic successor of an 
 ## Authenticated Evidence source integration
 
 [Evidence text source](EVIDENCE_SOURCE.md) connects the single-job worker to the accepted Evidence facade through a separately pinned service SDK contract, keeping each engine database separate. It repeats current processing-policy checks, authenticates Evidence calls and checks exact clean plaintext metadata and verified bytes before/after reading. Neither post-read checks nor a consumed snapshot are distributed permission fencing. Private output storage/receipt and deployment qualification remain separate.
+
+## Private output receipts
+
+[Private text outputs](TEXT_OUTPUTS.md) persist encrypted text in a Processing-owned object root and exact immutable metadata/receipt records in its own operational database. Durable pre-write intents retain incomplete blob/SQL work. Verification independently rereads the source and persisted output; SQL/blob atomicity, pending-intent finalization, no-output/liveness service and deployment acceptance remain separate.

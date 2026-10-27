@@ -228,3 +228,214 @@ test("repeated exact storage produces one output edition while conflicting metad
     );
   });
 });
+
+test("lost committed output acknowledgement recovers exact outcome without a second artifact or execution", async (t) => {
+  const f = await fixture(t),
+    j = await f.jobs.consume(w, "actual", 2);
+  let lost = false;
+  const db: typeof f.db = {
+    transaction: async (fn) => {
+      let publishing = false;
+      const result = await f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, v?: unknown[]) => {
+            const r = await q.query<T>(sql, v);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              v?.includes("processing.output.stored")
+            )
+              publishing = true;
+            return r;
+          },
+        }),
+      );
+      if (publishing && !lost) {
+        lost = true;
+        throw Error("lost output ack with private diagnostics");
+      }
+      return result;
+    },
+    close: async () => {},
+  };
+  const uncertain = new PrivateTextOutputs(
+    db,
+    f.objects,
+    f.options,
+    () => c.now,
+  );
+  await assert.rejects(
+    uncertain.storePrivateText(j, f.derivative, w, signal()),
+    (e) => {
+      assert.equal(String(e).includes("private diagnostics"), false);
+      return true;
+    },
+  );
+  assert.equal(lost, true);
+  f.time.now = "2026-01-01T00:02:00Z";
+  const out = await f.outputs.recoverOutcome(c, "actual", 3, signal());
+  assert.equal(await f.outputs.verifyOutcome(j.job, out, c, signal()), true);
+  assert.equal((await f.jobs.read(w, "actual")).job.status, "consumed");
+  await scoped(f.db, c, async (tx) =>
+    assert.equal((await tx.list("processing-output-receipt")).length, 1),
+  );
+});
+test("post-outbox rollback leaves durable pending intent and encrypted object but never a usable receipt", async (t) => {
+  const f = await fixture(t),
+    j = await f.jobs.consume(w, "actual", 2);
+  let injected = false;
+  const db: typeof f.db = {
+    transaction: (fn) =>
+      f.db.transaction((q) =>
+        fn({
+          query: async <T>(sql: string, v?: unknown[]) => {
+            const r = await q.query<T>(sql, v);
+            if (
+              sql.includes("INSERT INTO public.evidence_outbox") &&
+              v?.includes("processing.output.stored")
+            ) {
+              injected = true;
+              throw Error("rollback output publication");
+            }
+            return r;
+          },
+        }),
+      ),
+    close: async () => {},
+  };
+  await assert.rejects(
+    new PrivateTextOutputs(
+      db,
+      f.objects,
+      f.options,
+      () => c.now,
+    ).storePrivateText(j, f.derivative, w, signal()),
+  );
+  assert.equal(injected, true);
+  await assert.rejects(f.outputs.recoverOutcome(c, "actual", 3, signal()));
+  await scoped(f.db, c, async (tx) => {
+    assert.equal(
+      (await tx.list<{ status: string }>("processing-output-intent"))[0]!.value
+        .status,
+      "pending",
+    );
+    assert.deepEqual(await tx.list("processing-private-text"), []);
+    assert.deepEqual(await tx.list("processing-output-receipt"), []);
+    assert.ok(verifyAudit(await tx.audits()));
+  });
+  const key = `${digest({ tenantId: c.tenantId, projectId: c.projectId })}/${hashBytes(bytes)}`;
+  assert.deepEqual(
+    Buffer.from(
+      await f.objects.get(c, {
+        key,
+        plaintextHash: hashBytes(bytes),
+        size: 5,
+        keyVersion: "fixture-v1",
+      }),
+    ),
+    bytes,
+  );
+  assert.equal((await f.jobs.read(w, "actual")).job.status, "consumed");
+});
+test("bounded policy/source verification, cancellation and expired execution cannot create output records", async (t) => {
+  const f = await fixture(t),
+    j = await f.jobs.consume(w, "actual", 2);
+  let finish!: (v: boolean) => void, seen: AbortSignal | undefined;
+  const hanging = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      verificationTimeoutMs: 10,
+      authorize: async (_j, _c, s) => {
+        seen = s;
+        return new Promise((r) => {
+          finish = r;
+        });
+      },
+    },
+    () => c.now,
+  );
+  await assert.rejects(hanging.storePrivateText(j, f.derivative, w, signal()));
+  assert.equal(seen?.aborted, true);
+  finish(true);
+  await new Promise((r) => setImmediate(r));
+  const source = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      verificationTimeoutMs: 10,
+      readSource: async () => new Promise(() => {}),
+    },
+    () => c.now,
+  );
+  await assert.rejects(source.storePrivateText(j, f.derivative, w, signal()));
+  const aborted = new AbortController();
+  aborted.abort();
+  await assert.rejects(
+    f.outputs.storePrivateText(j, f.derivative, w, aborted.signal),
+  );
+  f.time.now = "2026-01-01T00:02:00Z";
+  await assert.rejects(
+    f.outputs.storePrivateText(j, f.derivative, w, signal()),
+  );
+  await scoped(f.db, c, async (tx) =>
+    assert.deepEqual(await tx.list("processing-output-intent"), []),
+  );
+});
+test("captured derivative is stable across policy waits and current source revalidation can deny an existing receipt", async (t) => {
+  const f = await fixture(t),
+    j = await f.jobs.consume(w, "actual", 2);
+  let entered!: () => void,
+    finish!: (v: boolean) => void,
+    calls = 0;
+  const ready = new Promise<void>((r) => {
+    entered = r;
+  });
+  const store = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      authorize: async () => {
+        if (++calls === 1) {
+          entered();
+          return new Promise((r) => {
+            finish = r;
+          });
+        }
+        return true;
+      },
+    },
+    () => c.now,
+  );
+  const d = structuredClone(f.derivative);
+  const pending = store.storePrivateText(j, d, w, signal());
+  await ready;
+  d.text = "mutated";
+  d.sha256 = hashBytes(Buffer.from("mutated"));
+  finish(true);
+  const out = await pending;
+  assert.equal(out.sha256, hashBytes(bytes));
+  const denied = new PrivateTextOutputs(
+    f.db,
+    f.objects,
+    {
+      ...f.options,
+      readSource: async () => ({
+        ...(await f.source()),
+        processingAllowed: false,
+      }),
+    },
+    () => c.now,
+  );
+  assert.equal(await denied.verifyOutcome(j.job, out, w, signal()), false);
+  await assert.rejects(
+    f.outputs.recoverOutcome(
+      { ...c, purpose: "foreign" },
+      "actual",
+      3,
+      signal(),
+    ),
+  );
+});
