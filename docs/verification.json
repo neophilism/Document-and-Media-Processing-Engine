@@ -114,7 +114,7 @@
     "newLocalGroups": 7,
     "oldSourceReproduction": "Four blocked-result transition groups failed against prior main 366589ca7937857406613e6b680daa16faaee52b",
     "database": "Actual canonical migration and restricted PGlite login",
-    "installedPackage": "pending",
+    "installedPackage": "All seven new groups executed successfully through installed compiled public exports",
     "finalHeadCi": "required_before_merge",
     "newNetworkSessionOrLiveQualification": "none"
   }
