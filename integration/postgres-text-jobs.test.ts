@@ -320,3 +320,60 @@ test(
     );
   },
 );
+
+test(
+  "network runtime login cannot bypass scope or acquire migration/schema authority",
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t, "network-role-boundary");
+    const owner = new TextProcessingJobs(
+      admin,
+      f.policy,
+      f.verification,
+      () => f.clock.now,
+    );
+    await assert.rejects(owner.read(f.context, "one"), {
+      code: "unsafe_database_role",
+    });
+    const lowered: Database = {
+      transaction: (fn) =>
+        admin.transaction(async (q) => {
+          await q.query("SET LOCAL ROLE evidence_runtime");
+          return fn(q);
+        }),
+      close: async () => {},
+    };
+    await assert.rejects(
+      new TextProcessingJobs(
+        lowered,
+        f.policy,
+        f.verification,
+        () => f.clock.now,
+      ).read(f.context, "one"),
+      { code: "unsafe_database_role" },
+    );
+    await assert.rejects(
+      f.a.transaction((q) =>
+        q.query("CREATE TABLE public.processing_forbidden_fixture(id integer)"),
+      ),
+      { code: "42501" },
+    );
+    await assert.rejects(
+      f.a.transaction((q) => q.query("SET LOCAL ROLE postgres")),
+      { code: "42501" },
+    );
+    await f.a.transaction(async (q) => {
+      await q.query("SET LOCAL ROLE evidence_runtime");
+      const count = await q.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM public.evidence_record",
+      );
+      assert.equal(count.rows[0]!.count, "0");
+    });
+    await scoped(
+      f.a,
+      { ...f.context, projectId: "unrelated-project" },
+      async (tx) => assert.deepEqual(await tx.list("text-processing-job"), []),
+    );
+    assert.equal((await f.jobsB.read(f.w, "one")).revision, 2);
+  },
+);
