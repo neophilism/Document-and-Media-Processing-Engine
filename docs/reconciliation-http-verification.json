@@ -1,0 +1,25 @@
+{
+  "stage": "local",
+  "ordinaryTestsPassed": 122,
+  "newHttpRestrictedMigrationGroups": 8,
+  "sourceHashes": {
+    "src/reconciliation-http.ts": "2eaeb459d8863e6e47fdfc68ff6e8314c61c144877a427259e904a5cecf7a66b",
+    "src/text-reconciliation.ts": "8d2bac3c747bf568f64f0dad0f0eac6e5331ee4f52b8f66518e9c613bd1424d8",
+    "src/contracts.ts": "d86141cb7546a723f837a298e4ea6fef62692918f78f5aab2d72d6639987fcc5"
+  },
+  "installedPackage": "All eight actual restricted-migration/encrypted-object groups passed freshly packed installed compiled public exports on the tightened source",
+  "finalHeadCi": "required_before_merge",
+  "newNetworkBrowserLiveHostQualification": "not_performed",
+  "limits": [
+    "Trusted incoming human session and current host roles/mapping required",
+    "No listening server/login/cookies/credential issuer",
+    "Body/auth acceptance bounds cannot preempt JS; begun SQL/FS awaited",
+    "503 unknown phases never rollback/no-output/stopped proof or execution authority",
+    "No dispatch/retry/cleanup/send/publication routes"
+  ],
+  "initialCi": {
+    "source": "023db47c9d819a7f7014c60a06b3a2201b043ffc",
+    "run": 40598150488,
+    "result": "all four jobs success; final-head CI still required"
+  }
+}

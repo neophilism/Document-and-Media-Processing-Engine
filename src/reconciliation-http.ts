@@ -115,14 +115,17 @@ async function session(
             "request_aborted",
             "Request cancelled",
           );
-          return auth.authenticate(
-            {
-              url: request.url,
-              method: request.method,
-              headers: new Headers(request.headers),
-            },
-            controller.signal,
+          const metadata = {
+            url: request.url,
+            method: request.method,
+            headers: new Headers(request.headers),
+          };
+          invariant(
+            !controller.signal.aborted && performance.now() < deadline,
+            "authentication_unavailable",
+            "Authentication deadline exceeded",
           );
+          return auth.authenticate(metadata, controller.signal);
         })
         .then((value) => {
           invariant(
@@ -175,9 +178,14 @@ async function session(
         c.requestId,
       ])
         nonempty(field, "Authenticated context", 200);
+      nonempty(c.now, "Authenticated time", 64);
       validTime(c.now);
       invariant(
-        Array.isArray(c.actor.roles),
+        Array.isArray(c.actor.roles) &&
+          c.actor.roles.length <= 128 &&
+          c.actor.roles.every(
+            (role) => typeof role === "string" && role.length <= 128,
+          ),
         "authentication_unavailable",
         "Invalid roles",
       );
@@ -198,6 +206,11 @@ async function session(
         /^[A-Za-z0-9_-]{32,256}$/.test(result.csrfToken),
       "authentication_unavailable",
       "Invalid session binding",
+    );
+    invariant(
+      !controller.signal.aborted && performance.now() < deadline,
+      "authentication_unavailable",
+      "Authentication deadline exceeded",
     );
     return result;
   } finally {
