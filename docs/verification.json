@@ -1,6 +1,6 @@
 {
   "stage": "local",
-  "testsPassed": 106,
+  "testsPassed": 114,
   "independentHumanAudit": "not_performed_owner_allows_ai_review",
   "liveAcceptance": "not_performed",
   "commands": [
@@ -14,11 +14,12 @@
     "src/index.ts": "4a24126ff5b081658cff0745a6e802a50131db8caf6e7d0a2947853e82316b25",
     "src/captions.ts": "8698800fdba65e526c9908cb875c53c7afb17c4a1c0238835f98db82c24635cf",
     "src/translation.ts": "1df01ee05bf34e53d5635f0cb9e95068e41f9639cd89047ca83b644c5491e2cc",
-    "src/text-jobs.ts": "8e5166de11029f30f87a9fe1ebe6522d0bde17dc2429b9c9dd21e9c191b67d28",
+    "src/text-jobs.ts": "7113e4924dd3ccaaa98d3a412ab27507977685be2aa0f499db829e988d286b13",
     "src/text-worker.ts": "745162ba19064535661a9cf200503b540c20c43ccd67a263f5479cf227b9f5df",
     "src/evidence-source.ts": "487659cff006bfc5276a672f801fc42015b8401fa0b586b2bc824a9b390b45be",
-    "src/text-outputs.ts": "a0ec4f67cc8d02472c53ff26029bbb309e48822db1fff5709b2c5786b0845ce3",
-    "src/text-reconciliation.ts": "8d2bac3c747bf568f64f0dad0f0eac6e5331ee4f52b8f66518e9c613bd1424d8"
+    "src/text-outputs.ts": "09e4673424094ef72f8559402eabbec3869c48c37f056541a812bc301a14d8ea",
+    "src/text-reconciliation.ts": "8d2bac3c747bf568f64f0dad0f0eac6e5331ee4f52b8f66518e9c613bd1424d8",
+    "src/text-output-records.ts": "e71620601c2a0e37d07322a49a6f00abf7f886050807d4c301b24e8a399d34e2"
   },
   "limits": [
     "Local counts exclude Docker integration; final-head CI is separate.",
@@ -138,5 +139,17 @@
       "docker-ocr": "success",
       "docker-pdf": "failed: actual PDF extraction exceeded existing 5s wall limit; no PDF runtime source change"
     }
+  },
+  "ownedOutputSettlementFence": {
+    "newLocalGroups": 8,
+    "fullLocalSuitePassed": 114,
+    "database": "Actual canonical migration and restricted PGlite login",
+    "objects": "Real temporary AES-GCM objects",
+    "externalProof": "Deliberately permissive synthetic callback; NOT qualified stopped/liveness proof",
+    "oldSourceBehavior": "Two presence-denial groups fail on prior main c40b653b56def5b6e9b12d1e4b58aaae74e3c9d1",
+    "installedPackage": "All 27 groups (8 new owned-output guards, 7 verifier deadlines, 12 reconciliation) passed through installed compiled public exports",
+    "finalHeadCi": "required_before_merge",
+    "newNetworkSessionCrashOrLiveQualification": "none",
+    "absenceProofOrCleanup": "not_provided"
   }
 }
