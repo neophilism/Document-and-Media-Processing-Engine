@@ -47,6 +47,10 @@
     "./text-reconciliation": {
       "types": "./dist/text-reconciliation.d.ts",
       "default": "./dist/text-reconciliation.js"
+    },
+    "./reconciliation-http": {
+      "types": "./dist/reconciliation-http.d.ts",
+      "default": "./dist/reconciliation-http.js"
     }
   },
   "engines": {
