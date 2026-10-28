@@ -47,3 +47,7 @@ No-output settlement/retry now check exact known Processing output intent/artifa
 ## Private reconciliation HTTP admission
 
 [Reconciliation HTTP](RECONCILIATION_HTTP.md) adds an opt-in native Fetch adapter with only session and explicit existing-output reconciliation. Bounded body capture precedes fresh trusted host human-manager authentication, then fixed origin/scope/purpose/list/CSRF checks gate the accepted coordinator. Begun SQL/FS remains awaited and uncertainty never authorizes execution. Actual login/listening server/TLS/proxy/UI and deployed policy/key/source/storage acceptance remain separate.
+
+## Current Identity membership composition
+
+[Identity reconciliation HTTP](IDENTITY_RECONCILIATION_HTTP.md) composes pinned current stored human-owner membership with the accepted private Processing HTTP/coordinator flow, keeping separate owning operational databases. Current Identity authority supplements the Processing manager/purpose/CSRF/domain checks. These are sequential service snapshots, not atomic revocation/action fencing; real session/listening host/deployment qualification remain pending.
