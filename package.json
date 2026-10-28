@@ -55,6 +55,10 @@
     "./identity-reconciliation-http": {
       "types": "./dist/identity-reconciliation-http.d.ts",
       "default": "./dist/identity-reconciliation-http.js"
+    },
+    "./node-reconciliation-listener": {
+      "types": "./dist/node-reconciliation-listener.d.ts",
+      "default": "./dist/node-reconciliation-listener.js"
     }
   },
   "engines": {
