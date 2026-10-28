@@ -1,0 +1,43 @@
+{
+  "local": {
+    "ordinaryTests": 127,
+    "newTwoDatabaseHttpGroups": 5,
+    "typecheck": "passed",
+    "build": "passed",
+    "registry": "passed"
+  },
+  "installed": {
+    "entry": "@accountability/document-media-processing/identity-reconciliation-http",
+    "groups": 5,
+    "wrapperJS": "byte-matched build"
+  },
+  "identitySource": "43bcccfba577114f51954f868906280ed7b7ba56",
+  "initialCi": {
+    "run": 40691433906,
+    "source": "ef1847aee4d7120d3528a01183b4e11cfbda4e22",
+    "postgresJob": 122826955848,
+    "existingPostgresGroups": 7,
+    "pdfJob": 122826955817,
+    "dockerPdfTests": 2,
+    "ocrJob": 122826955491,
+    "dockerOcrTests": 3,
+    "logsInspected": true
+  },
+  "review": [
+    "Only composes accepted public Identity session and Processing handler/coordinator interfaces",
+    "Fixed admin action, policy snapshot, separate operational databases; independent manager/purpose/Origin/CSRF/domain checks retained",
+    "Actual stored demotion before auth and stalled-body completion; lost completion ack exact replay checks current membership",
+    "Ciphertext remains unchanged and original completion remains revision4 after replay",
+    "Consuming HTTP auth may return while noncooperative Identity SQL continues; late result is fenced but no rollback proof"
+  ],
+  "limitations": [
+    "Sequential role snapshot, not atomic cross-service revocation/action fencing or capability verification",
+    "Trusted host session proofing/current clocks/CSRF/key/source/policy and driver limits remain mandatory",
+    "No listening TLS/login/browser/AT/live provider acceptance or new TCP-session scenario"
+  ],
+  "sourceSha256": {
+    "src/identity-reconciliation-http.ts": "ba51d82b9fc4323872b83655df617e94c13c1855ff0997becfd1379861a55d20",
+    "tests/identity-reconciliation-http.test.ts": "0ba1b77ef7b7267cf2cec8941f5954e3c0e77b0f2445c82fa1dbcef89fb0f0b3",
+    "tests/identity-http-fixture.ts": "65e321c9b2d9f7daad044b3a8e2dd839323f4bbf7efb220d765ec645f9b4e3cf"
+  }
+}

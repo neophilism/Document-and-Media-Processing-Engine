@@ -51,6 +51,10 @@
     "./reconciliation-http": {
       "types": "./dist/reconciliation-http.d.ts",
       "default": "./dist/reconciliation-http.js"
+    },
+    "./identity-reconciliation-http": {
+      "types": "./dist/identity-reconciliation-http.d.ts",
+      "default": "./dist/identity-reconciliation-http.js"
     }
   },
   "engines": {
@@ -78,6 +82,7 @@
   ],
   "dependencies": {
     "@accountability/evidence": "github:neophilism/Evidence-Storage-and-Provenance-Engine#dce7105a70b42d77afe4cd48d34723331447037c",
-    "@accountability/evidence-service-sdk": "github:neophilism/Evidence-Storage-and-Provenance-Engine#c9aafd0cc7d655e4dc3f8b5b8b833ef102d4cf2b"
+    "@accountability/evidence-service-sdk": "github:neophilism/Evidence-Storage-and-Provenance-Engine#c9aafd0cc7d655e4dc3f8b5b8b833ef102d4cf2b",
+    "@accountability/identity-policy": "github:neophilism/Identity-Authorization-and-Policy-Engine#43bcccfba577114f51954f868906280ed7b7ba56"
   }
 }
