@@ -1,0 +1,47 @@
+{
+  "local": {
+    "ordinaryTests": 135,
+    "newActualLoopbackTLSGroups": 8,
+    "actualIdentityProcessingSQLGroup": 1,
+    "controlledHandlerTransportGroups": 7,
+    "typecheck": "passed",
+    "build": "passed",
+    "registry": "passed"
+  },
+  "installed": {
+    "entry": "@accountability/document-media-processing/node-reconciliation-listener",
+    "groups": 8,
+    "listenerJS": "byte-matched build"
+  },
+  "initialCi": {
+    "source": "23d286c615862841650cd1a58e85681f92c2fe7a",
+    "run": 40702358697,
+    "check": 122865257455,
+    "ordinaryTests": 133,
+    "postgres": 122865257901,
+    "existingPostgresGroups": 7,
+    "pdf": 122865258017,
+    "dockerPdfTests": 2,
+    "ocr": 122865257958,
+    "dockerOcrTests": 3,
+    "logsInspected": true
+  },
+  "review": [
+    "Direct TLS1.2/1.3 HTTP1.1 exact authority/raw header/known path admission; no proxy URL reconstruction",
+    "Backpressured actual request bytes/chunks; normal request end does not abort a valid response",
+    "Disconnect/deadline/monotonic gates, concurrency retained until noncooperative handler actually settles",
+    "Post-handler failures unknown503, sanitized fixed private headers, no late success after blocked-JS overrun",
+    "Response bytes/chunks/strictUTF8 JSON bounded; late bodies cancelled; certificates generated temporarily, CA+hostname verified without bypass"
+  ],
+  "limits": [
+    "No production login/cert/PKI/proxy/browser/AT or host pre-header/handshake qualification",
+    "No new database network-session/crash/throughput/multinode/source/receipt/liveness qualification",
+    "Host supplies/limits HTTPS server and current session/Identity/policy/driver services",
+    "No new execution/retry/cleanup/download/send/publication routes or distributed action fence"
+  ],
+  "sourceSha256": {
+    "src/node-reconciliation-listener.ts": "8da1fdd59cb187e9ae07d77dbd324fe4935f25e40130d1699f603f168cfe5269",
+    "tests/node-reconciliation-listener.test.ts": "8edcd256e0b88bd8072c9cefe1f35b8bf9ca5161bc7f66836eda444c12913b49",
+    "tests/node-listener-fixture.ts": "5100140fdb752e9c43fefee762d4e94e2c7d3cb6464e3ef1712d22c519b115d8"
+  }
+}

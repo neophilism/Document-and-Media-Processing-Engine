@@ -51,3 +51,7 @@ No-output settlement/retry now check exact known Processing output intent/artifa
 ## Current Identity membership composition
 
 [Identity reconciliation HTTP](IDENTITY_RECONCILIATION_HTTP.md) composes pinned current stored human-owner membership with the accepted private Processing HTTP/coordinator flow, keeping separate owning operational databases. Current Identity authority supplements the Processing manager/purpose/CSRF/domain checks. These are sequential service snapshots, not atomic revocation/action fencing; real session/listening host/deployment qualification remain pending.
+
+## Direct TLS transport bridge
+
+[Node reconciliation listener](NODE_RECONCILIATION_LISTENER.md) adapts direct HTTPS HTTP/1.1 requests to the accepted Fetch handler with exact authority, private bounded streams, cancellation and conservative unknown outcomes. The host supplies and limits its HTTPS server/certificates/session service. Loopback TLS tests are distinct from production login/TLS/proxy/browser acceptance and database-network qualification.
