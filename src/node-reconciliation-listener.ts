@@ -97,6 +97,7 @@ export function createNodeReconciliationListener(
       if (
         !(req.socket instanceof TLSSocket) ||
         !req.socket.encrypted ||
+        !["TLSv1.2", "TLSv1.3"].includes(req.socket.getProtocol() ?? "") ||
         req.httpVersion !== "1.1"
       )
         throw Error("admission");
@@ -258,9 +259,12 @@ export function createNodeReconciliationListener(
         chunks.push(new Uint8Array(part.value));
       }
       gate();
+      const output = Buffer.concat(chunks);
+      JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(output));
+      gate();
       if (!res.destroyed && !res.writableEnded) {
         res.writeHead(response.status, headers);
-        res.end(Buffer.concat(chunks));
+        res.end(output);
       }
     } catch {
       reply(

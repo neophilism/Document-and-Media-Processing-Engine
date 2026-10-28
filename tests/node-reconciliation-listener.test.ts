@@ -203,9 +203,19 @@ test("response byte/chunk limits and invalid configuration fail closed with sani
         exchangeTimeoutMs,
       }),
     );
-  for (const behavior of ["bytes", "chunks", "throw"]) {
+  for (const behavior of ["bytes", "chunks", "throw", "utf8", "json"]) {
     const f = await tlsFixture(t, () => async () => {
       if (behavior === "throw") throw Error("private credential diagnostic");
+      if (behavior === "utf8" || behavior === "json")
+        return new Response(
+          behavior === "utf8" ? new Uint8Array([255]) : "not JSON",
+          {
+            headers: {
+              "content-type": "application/json",
+              "cache-control": "no-store",
+            },
+          },
+        );
       if (behavior === "bytes") return json({ value: "x".repeat(262145) });
       let count = 0;
       return new Response(
@@ -228,4 +238,124 @@ test("response byte/chunk limits and invalid configuration fail closed with sani
     assert.equal(r.body.includes("private credential"), false);
     assert.equal(r.headers["cache-control"], "private, no-store");
   }
+});
+
+test("loopback TLS verifies hostname and duplicate raw authority never reaches the handler", async (t) => {
+  const { connect } = await import("node:tls");
+  let calls = 0;
+  const f = await tlsFixture(t, () => async () => {
+    calls++;
+    return json({});
+  });
+  const url = new URL(f.origin);
+  await assert.rejects(
+    new Promise<void>((resolve, reject) => {
+      const socket = connect(
+        {
+          host: "127.0.0.1",
+          port: Number(url.port),
+          ca: f.cert,
+          servername: "wrong.example",
+        },
+        () => {
+          socket.destroy();
+          resolve();
+        },
+      );
+      socket.on("error", reject);
+    }),
+    { code: "ERR_TLS_CERT_ALTNAME_INVALID" },
+  );
+  const raw = await new Promise<string>((resolve, reject) => {
+    const socket = connect(
+      {
+        host: "127.0.0.1",
+        port: Number(url.port),
+        ca: f.cert,
+        servername: "localhost",
+      },
+      () => {
+        socket.write(
+          "GET /processing/session HTTP/1.1\r\nHost: " +
+            url.host +
+            "\r\nHost: " +
+            url.host +
+            "\r\nConnection: close\r\n\r\n",
+        );
+      },
+    );
+    let value = "";
+    socket.setEncoding("utf8");
+    socket.on("data", (chunk) => {
+      value += chunk;
+    });
+    socket.on("end", () => resolve(value));
+    socket.on("error", reject);
+  });
+  assert.match(raw, /^HTTP\/1.1 400/);
+  assert.equal(calls, 0);
+  const { createServer, request } = await import("node:http");
+  const listener = createNodeReconciliationListener(
+    async () => {
+      calls++;
+      return json({});
+    },
+    { origin: f.origin },
+  );
+  const plain = createServer(listener);
+  await new Promise<void>((resolve) => plain.listen(0, "127.0.0.1", resolve));
+  t.after(async () => {
+    plain.closeAllConnections();
+    await new Promise<void>((r) => plain.close(() => r()));
+  });
+  const address = plain.address();
+  if (!address || typeof address === "string") throw Error("fixture");
+  const status = await new Promise<number>((resolve, reject) => {
+    const req = request(
+      {
+        hostname: "127.0.0.1",
+        port: address.port,
+        path: "/processing/session",
+        headers: { host: url.host },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode!));
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+  assert.equal(status, 400);
+  assert.equal(calls, 0);
+});
+
+test("blocked-JS handler overrun is unknown before delayed timer; late response bytes are cancelled", async (t) => {
+  let owned: AbortSignal | undefined,
+    cancelled = false;
+  const f = await tlsFixture(
+    t,
+    () => async (req) => {
+      owned = req.signal;
+      const until = performance.now() + 50;
+      while (performance.now() < until) {}
+      return new Response(
+        new ReadableStream({
+          cancel() {
+            cancelled = true;
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+          },
+        },
+      );
+    },
+    { exchangeTimeoutMs: 10 },
+  );
+  assert.equal((await f.send("/processing/session")).status, 503);
+  assert.equal(owned?.aborted, true);
+  assert.equal(cancelled, true);
 });
